@@ -161,7 +161,7 @@ async function _fetchLiveModels(provider, sel){
 
 /**
  * Check if the given model ID belongs to a different provider than the one
- * currently configured in Hermes. Returns a warning string if mismatched,
+ * currently configured in NetClaw Agent. Returns a warning string if mismatched,
  * or null if the selection looks compatible.
  *
  * Provider detection is intentionally loose — we compare the model's slash
@@ -1025,7 +1025,7 @@ async function checkInflightOnBoot(sid) {
 
 function syncTopbar(){
   if(!S.session){
-    document.title=window._botName||'Hermes';
+    document.title=window._botName||'NetClaw Agent';
     if(typeof syncWorkspaceDisplays==='function') syncWorkspaceDisplays();
     if(typeof syncModelChip==='function') syncModelChip();
     if(typeof _syncHermesPanelSessionActions==='function') _syncHermesPanelSessionActions();
@@ -1039,7 +1039,7 @@ function syncTopbar(){
   }
   const sessionTitle=S.session.title||t('untitled');
   $('topbarTitle').textContent=sessionTitle;
-  document.title=sessionTitle+' \u2014 '+(window._botName||'Hermes');
+  document.title=sessionTitle+' \u2014 '+(window._botName||'NetClaw Agent');
   const vis=S.messages.filter(m=>m&&m.role&&m.role!=='tool');
   $('topbarMeta').textContent=t('n_messages',vis.length);
   // If a profile switch just happened, apply its model rather than the session's stale value.
@@ -1104,7 +1104,7 @@ function _messageHasReasoningPayload(m){
   return /<think>[\s\S]*?<\/think>|<\|channel>thought\n[\s\S]*?<channel\|>|<\|turn\|>thinking\n[\s\S]*?<turn\|>/.test(String(m.content||''));
 }
 function _assistantRoleHtml(tsTitle=''){
-  const _bn=window._botName||'Hermes';
+  const _bn=window._botName||'NetClaw Agent';
   return `<div class="msg-role assistant" ${tsTitle?`title="${esc(tsTitle)}"`:''}><div class="role-icon assistant">${esc(_bn.charAt(0).toUpperCase())}</div><span style="font-size:12px">${esc(_bn)}</span></div>`;
 }
 function _createAssistantTurn(tsTitle=''){
@@ -1508,7 +1508,7 @@ function renderMessages(){
     };
     S.messages.forEach(m=>{
       if(!m) return;
-      // OpenAI / Hermes CLI format: role=tool with tool_call_id
+      // OpenAI / NetClaw Agent CLI format: role=tool with tool_call_id
       if(m.role==='tool'){
         const tid=m.tool_call_id||m.tool_use_id||'';
         if(tid) resultsByTid[tid]=_snipFromRaw(m.content);

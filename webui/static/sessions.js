@@ -734,7 +734,7 @@ async function deleteSession(sid){
     if(remaining.sessions&&remaining.sessions.length){
       await loadSession(remaining.sessions[0].session_id);
     }else{
-      $('topbarTitle').textContent=window._botName||'Hermes';
+      $('topbarTitle').textContent=window._botName||'NetClaw Agent';
       $('topbarMeta').textContent='Start a new conversation';
       $('msgInner').innerHTML='';
       $('emptyState').style.display='';

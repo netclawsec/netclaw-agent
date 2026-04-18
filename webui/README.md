@@ -1,8 +1,10 @@
-# Hermes Web UI
+# NetClaw Agent Web UI
 
-[Hermes Agent](https://hermes-agent.nousresearch.com/) is a sophisticated autonomous agent that lives on your server, accessed via a terminal or messaging apps, that remembers what it learns and gets more capable the longer it runs.
+> Branded and productized by 网钳科技 (NetClawSec). Upstream: [`nesquena/hermes-webui`](https://github.com/nesquena/hermes-webui).
 
-Hermes WebUI is a lightweight, dark-themed web app interface in your browser for [Hermes Agent](https://hermes-agent.nousresearch.com/).
+[NetClaw Agent](https://hermes-agent.nousresearch.com/) is a sophisticated autonomous agent that lives on your server, accessed via a terminal or messaging apps, that remembers what it learns and gets more capable the longer it runs.
+
+NetClaw Agent Web UI is a lightweight, dark-themed web app interface in your browser for the NetClaw Agent runtime.
 Full parity with the CLI experience - everything you can do from a terminal,
 you can do from this UI. No build step, no framework, no bundler. Just Python
 and vanilla JS.
@@ -11,7 +13,7 @@ Layout: three-panel. Left sidebar for sessions and navigation, center for chat,
 right for workspace file browsing. Model, profile, and workspace controls live in
 the **composer footer** — always visible while composing. A circular context ring
 shows token usage at a glance. All settings and session tools are in the
-**Hermes Control Center** (launcher at the sidebar bottom).
+**NetClaw Agent Control Center** (launcher at the sidebar bottom).
 
 <img width="2448" height="1748" alt="Hermes Web UI — three-panel layout" src="https://github.com/user-attachments/assets/6bf8af4c-209d-441e-8b92-6515d7a0c369" />
 
@@ -41,11 +43,11 @@ shows token usage at a glance. All settings and session tools are in the
   </tr>
 </table>
 
-This gives you nearly **1:1 parity with Hermes CLI from a convenient web UI** which you can access securely through an SSH tunnel from your Hermes setup. Single command to start this up, and a single command to SSH tunnel for access on your computer. Every single part of the web UI uses your existing Hermes agent and existing models, without requiring any additional setup.
+This gives you nearly **1:1 parity with the CLI from a convenient web UI** which you can access securely through an SSH tunnel from your NetClaw Agent setup. Single command to start this up, and a single command to SSH tunnel for access on your computer. Every single part of the web UI uses your existing agent runtime and existing models, without requiring any additional setup.
 
 ---
 
-## Why Hermes
+## Why NetClaw Agent
 
 Most AI tools reset every session. They don't know who you are, what you worked on, or what
 conventions your project follows. You re-explain yourself every time.

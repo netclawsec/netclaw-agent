@@ -1,3 +1,10 @@
+<!--
+  网钳科技 NetClaw Agent fork notice:
+  This repository is a downstream integration of Nous Research's hermes-agent with
+  nesquena's hermes-webui, productized as "NetClaw Agent". See NETCLAW.md for the
+  fork structure, dual-upstream pull workflow, and branding conventions.
+-->
+
 <p align="center">
   <img src="assets/banner.png" alt="Hermes Agent" width="100%">
 </p>

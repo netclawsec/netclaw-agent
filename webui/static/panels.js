@@ -1267,7 +1267,7 @@ async function loadSettingsPanel(){
     if(bubbleCb){bubbleCb.checked=!!settings.bubble_layout;bubbleCb.addEventListener('change',_markSettingsDirty,{once:false});}
     // Bot name
     const botNameField=$('settingsBotName');
-    if(botNameField){botNameField.value=settings.bot_name||'Hermes';botNameField.addEventListener('input',_markSettingsDirty,{once:false});}
+    if(botNameField){botNameField.value=settings.bot_name||'NetClaw Agent';botNameField.addEventListener('input',_markSettingsDirty,{once:false});}
     // Password field: always blank (we don't send hash back)
     const pwField=$('settingsPassword');
     if(pwField){pwField.value='';pwField.addEventListener('input',_markSettingsDirty,{once:false});}
@@ -1297,7 +1297,7 @@ function _applySavedSettingsUi(saved, body, opts){
   window._showCliSessions=showCliSessions;
   window._soundEnabled=body.sound_enabled;
   window._notificationsEnabled=body.notifications_enabled;
-  window._botName=body.bot_name||'Hermes';
+  window._botName=body.bot_name||'NetClaw Agent';
   document.body.classList.toggle('bubble-layout', !!body.bubble_layout);
   if(typeof applyBotName==='function') applyBotName();
   if(typeof setLocale==='function') setLocale(language);
@@ -1342,7 +1342,7 @@ async function saveSettings(andClose){
   body.bubble_layout=!!($('settingsBubbleLayout')||{}).checked;
   document.body.classList.toggle('bubble-layout', body.bubble_layout);
   const botName=(($('settingsBotName')||{}).value||'').trim();
-  body.bot_name=botName||'Hermes';
+  body.bot_name=botName||'NetClaw Agent';
   // Password: only act if the field has content; blank = leave auth unchanged
   if(pw && pw.trim()){
     try{

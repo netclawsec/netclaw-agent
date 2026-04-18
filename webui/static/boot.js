@@ -416,7 +416,7 @@ $('modelSelect').onchange=async()=>{
   S.session.model=selectedModel;
   if(typeof syncModelChip==='function') syncModelChip();
   syncTopbar();
-  // Warn if selected model belongs to a different provider than what Hermes is configured for
+  // Warn if selected model belongs to a different provider than what NetClaw Agent is configured for
   if(typeof _checkProviderMismatch==='function'){
     const warn=_checkProviderMismatch(selectedModel);
     if(warn&&typeof showToast==='function') showToast(warn,4000);
@@ -710,7 +710,7 @@ function _buildSkinPicker(activeSkin){
 }
 
 function applyBotName(){
-  const name=window._botName||'Hermes';
+  const name=window._botName||'NetClaw Agent';
   document.title=name;
   const sidebarH1=document.querySelector('.sidebar-header h1');
   if(sidebarH1) sidebarH1.textContent=name;
@@ -733,7 +733,7 @@ function applyBotName(){
     window._showCliSessions=!!s.show_cli_sessions;
     window._soundEnabled=!!s.sound_enabled;
     window._notificationsEnabled=!!s.notifications_enabled;
-    window._botName=s.bot_name||'Hermes';
+    window._botName=s.bot_name||'NetClaw Agent';
     const appearance=_normalizeAppearance(s.theme,s.skin);
     localStorage.setItem('hermes-theme',appearance.theme);
     _applyTheme(appearance.theme);
@@ -754,7 +754,7 @@ function applyBotName(){
     window._showCliSessions=false;
     window._soundEnabled=false;
     window._notificationsEnabled=false;
-    window._botName='Hermes';
+    window._botName='NetClaw Agent';
     _bootSettings={check_for_updates:false};
     document.body.classList.remove('bubble-layout');
     if(typeof setLocale==='function'){
