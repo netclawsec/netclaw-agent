@@ -135,7 +135,7 @@ netclaw claw migrate --overwrite  # 覆盖冲突项
 导入范围包括：
 - **SOUL.md** — 人格文件
 - **Memories** — MEMORY.md / USER.md 条目
-- **Skills** — 用户技能 → `~/.hermes/skills/openclaw-imports/`
+- **Skills** — 用户技能 → `~/.netclaw/skills/openclaw-imports/`（旧版 `~/.hermes/` 安装自动沿用原路径）
 - **命令白名单** — 审批规则
 - **消息平台配置** — 平台设置、允许用户、工作目录
 - **API Keys** — 允许列表内的密钥 (Telegram / OpenRouter / OpenAI / Anthropic / ElevenLabs)

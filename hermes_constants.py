@@ -1,58 +1,114 @@
-"""Shared constants for Hermes Agent.
+"""Shared constants for NetClaw Agent (internal module name: hermes_constants).
 
 Import-safe module with no dependencies — can be imported from anywhere
 without risk of circular imports.
+
+NetClaw Agent productization shim: on import, any ``NETCLAW_*`` environment
+variable is mirrored into the legacy ``HERMES_*`` name so downstream code
+keeps reading the internal contract while users interact with the branded
+names.  The home directory defaults to ``~/.netclaw`` for fresh installs
+but keeps ``~/.hermes`` for existing deployments to avoid breaking them.
 """
 
 import os
 from pathlib import Path
 
 
-def get_hermes_home() -> Path:
-    """Return the Hermes home directory (default: ~/.hermes).
+def _propagate_netclaw_env() -> None:
+    """Copy ``NETCLAW_*`` env vars into their legacy ``HERMES_*`` siblings.
 
-    Reads HERMES_HOME env var, falls back to ~/.hermes.
-    This is the single source of truth — all other copies should import this.
+    Users only see ``NETCLAW_*`` names in docs and error messages; the
+    internal codebase continues to read ``HERMES_*`` from a single central
+    shim here.  Legacy values win only when the new name is absent.
     """
-    return Path(os.getenv("HERMES_HOME", Path.home() / ".hermes"))
+    for key, value in list(os.environ.items()):
+        if not key.startswith("NETCLAW_"):
+            continue
+        legacy_key = "HERMES_" + key[len("NETCLAW_") :]
+        if legacy_key not in os.environ:
+            os.environ[legacy_key] = value
+
+
+# Run once at import time so every subsequent os.getenv("HERMES_*") sees
+# values the user supplied via the branded NETCLAW_* name.
+_propagate_netclaw_env()
+
+
+_NETCLAW_DIRNAME = ".netclaw"
+_LEGACY_DIRNAME = ".hermes"
+
+
+def _resolve_home_default() -> Path:
+    """Return the default NetClaw data directory, honoring legacy layouts.
+
+    Resolution order:
+    1. ``NETCLAW_HOME`` / ``HERMES_HOME`` env var (already propagated above).
+    2. Existing ``~/.netclaw`` directory — new-style install.
+    3. Existing ``~/.hermes`` directory — legacy install kept untouched.
+    4. Fresh install — new path (``~/.netclaw``).
+    """
+    override = os.getenv("NETCLAW_HOME") or os.getenv("HERMES_HOME")
+    if override:
+        return Path(override)
+    netclaw_dir = Path.home() / _NETCLAW_DIRNAME
+    hermes_dir = Path.home() / _LEGACY_DIRNAME
+    if netclaw_dir.exists():
+        return netclaw_dir
+    if hermes_dir.exists():
+        return hermes_dir
+    return netclaw_dir
+
+
+def get_hermes_home() -> Path:
+    """Return the NetClaw Agent data directory.
+
+    Default is ``~/.netclaw``; legacy ``~/.hermes`` installs keep working
+    without migration.  Users override via ``NETCLAW_HOME`` (preferred) or
+    ``HERMES_HOME`` (legacy alias).
+
+    Function name is preserved for internal call sites; the user-facing
+    name is the **NetClaw home directory**.
+    """
+    return _resolve_home_default()
 
 
 def get_default_hermes_root() -> Path:
-    """Return the root Hermes directory for profile-level operations.
+    """Return the root NetClaw data directory for profile-level operations.
 
-    In standard deployments this is ``~/.hermes``.
+    In standard deployments this is ``~/.netclaw`` (or ``~/.hermes`` for
+    legacy installs that still have that directory).
 
-    In Docker or custom deployments where ``HERMES_HOME`` points outside
-    ``~/.hermes`` (e.g. ``/opt/data``), returns ``HERMES_HOME`` directly
+    In Docker or custom deployments where the home env var points outside
+    the standard location (e.g. ``/opt/data``), returns that path directly
     — that IS the root.
 
-    In profile mode where ``HERMES_HOME`` is ``<root>/profiles/<name>``,
-    returns ``<root>`` so that ``profile list`` can see all profiles.
-    Works both for standard (``~/.hermes/profiles/coder``) and Docker
+    In profile mode where the home points at ``<root>/profiles/<name>``,
+    returns ``<root>`` so ``profile list`` can see all profiles.  Works for
+    both native (``~/.netclaw/profiles/coder``) and Docker
     (``/opt/data/profiles/coder``) layouts.
 
     Import-safe — no dependencies beyond stdlib.
     """
-    native_home = Path.home() / ".hermes"
-    env_home = os.environ.get("HERMES_HOME", "")
+    native_home = _resolve_home_default()
+    env_home = os.environ.get("NETCLAW_HOME") or os.environ.get("HERMES_HOME", "")
     if not env_home:
         return native_home
     env_path = Path(env_home)
     try:
         env_path.resolve().relative_to(native_home.resolve())
-        # HERMES_HOME is under ~/.hermes (normal or profile mode)
+        # Env override is under the native home (normal or profile mode).
         return native_home
     except ValueError:
         pass
 
     # Docker / custom deployment.
     # Check if this is a profile path: <root>/profiles/<name>
-    # If the immediate parent dir is named "profiles", the root is
-    # the grandparent — this covers Docker profiles correctly.
+    # If the immediate parent dir is named "profiles", the root is the
+    # grandparent — this covers Docker profiles correctly.
     if env_path.parent.name == "profiles":
         return env_path.parent.parent
 
-    # Not a profile path — HERMES_HOME itself is the root
+    # Not a profile path — the env override itself is the root.
     return env_path
 
 
@@ -60,9 +116,13 @@ def get_optional_skills_dir(default: Path | None = None) -> Path:
     """Return the optional-skills directory, honoring package-manager wrappers.
 
     Packaged installs may ship ``optional-skills`` outside the Python package
-    tree and expose it via ``HERMES_OPTIONAL_SKILLS``.
+    tree and expose it via ``NETCLAW_OPTIONAL_SKILLS`` (legacy alias
+    ``HERMES_OPTIONAL_SKILLS`` is propagated automatically on import).
     """
-    override = os.getenv("HERMES_OPTIONAL_SKILLS", "").strip()
+    override = (
+        os.getenv("NETCLAW_OPTIONAL_SKILLS", "").strip()
+        or os.getenv("HERMES_OPTIONAL_SKILLS", "").strip()
+    )
     if override:
         return Path(override)
     if default is not None:
@@ -92,16 +152,16 @@ def get_hermes_dir(new_subpath: str, old_name: str) -> Path:
 
 
 def display_hermes_home() -> str:
-    """Return a user-friendly display string for the current HERMES_HOME.
+    """Return a user-friendly display string for the current NetClaw home.
 
     Uses ``~/`` shorthand for readability::
 
-        default:  ``~/.hermes``
-        profile:  ``~/.hermes/profiles/coder``
-        custom:   ``/opt/hermes-custom``
+        default:  ``~/.netclaw``  (or ``~/.hermes`` on legacy installs)
+        profile:  ``~/.netclaw/profiles/coder``
+        custom:   ``/opt/netclaw-custom``
 
     Use this in **user-facing** print/log messages instead of hardcoding
-    ``~/.hermes``.  For code that needs a real ``Path``, use
+    the path.  For code that needs a real ``Path``, use
     :func:`get_hermes_home` instead.
     """
     home = get_hermes_home()
@@ -235,7 +295,6 @@ def get_config_path() -> Path:
 def get_skills_dir() -> Path:
     """Return the path to the skills directory under HERMES_HOME."""
     return get_hermes_home() / "skills"
-
 
 
 def get_env_path() -> Path:
