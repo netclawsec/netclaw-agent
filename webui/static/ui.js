@@ -206,17 +206,26 @@ function syncModelChip(){
 }
 
 function syncYoloChip(){
-  const chip=$('composerYoloChip');
+  const chip=document.getElementById('composerYoloChip');
   if(!chip) return;
   const on=!!(S.session && S.session.yolo);
   chip.setAttribute('aria-pressed',on?'true':'false');
+  const tr=(k)=>(typeof t==='function'?t(k):'');
   chip.title=on
-    ? 'YOLO on — every command auto-approved for this session. Click to disable.'
-    : 'YOLO off — commands still require approval. Click to enable.';
+    ? (tr('yolo_title_on')||'YOLO on — every command auto-approved for this session. Click to disable.')
+    : (tr('yolo_title_off')||'YOLO off — commands still require approval. Click to enable.');
+  const label=chip.querySelector('.composer-yolo-label');
+  if(label) label.textContent=(tr('yolo_label')||'YOLO');
 }
+window.syncYoloChip=syncYoloChip;
 
 async function toggleYolo(){
-  if(!S.session){ if(typeof showToast==='function') showToast('Start a session first',2500); return; }
+  const tr=(k)=>(typeof t==='function'?t(k):'');
+  if(!S.session){
+    const msg=tr('yolo_need_session')||'Start a session first';
+    if(typeof showToast==='function') showToast(msg,2500); else alert(msg);
+    return;
+  }
   const next=!(S.session.yolo);
   try{
     const r=await api('/api/session/update',{method:'POST',body:JSON.stringify({
@@ -227,13 +236,15 @@ async function toggleYolo(){
     if(r&&r.session) S.session=Object.assign({},S.session,r.session);
     else S.session.yolo=next;
     syncYoloChip();
-    if(typeof showToast==='function'){
-      showToast(next?'YOLO mode ENABLED — commands will auto-approve':'YOLO mode disabled',3500);
-    }
+    const msg=next?(tr('yolo_toast_on')||'YOLO mode ENABLED — commands will auto-approve')
+                  :(tr('yolo_toast_off')||'YOLO mode disabled');
+    if(typeof showToast==='function') showToast(msg,3500);
   }catch(err){
-    if(typeof showToast==='function') showToast('Failed to toggle YOLO: '+err,4000);
+    const msg=(tr('yolo_toggle_failed')||'Failed to toggle YOLO: ')+err;
+    if(typeof showToast==='function') showToast(msg,4000); else alert(msg);
   }
 }
+window.toggleYolo=toggleYolo;
 
 function _positionModelDropdown(){
   const dd=$('composerModelDropdown');
