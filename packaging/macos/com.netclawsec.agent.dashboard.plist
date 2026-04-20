@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.netclawsec.agent.dashboard</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/crawford/workspace/netclaw-agent/.venv/bin/python</string>
+    <string>/Users/crawford/workspace/netclaw-agent/webui/server.py</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/crawford/workspace/netclaw-agent/webui</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/Users/crawford/workspace/netclaw-agent/.venv/bin:/Users/crawford/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <key>HOME</key>
+    <string>/Users/crawford</string>
+    <key>HERMES_WEBUI_HOST</key>
+    <string>0.0.0.0</string>
+    <key>HERMES_WEBUI_PORT</key>
+    <string>8787</string>
+    <key>PYTHONPATH</key>
+    <string>/Users/crawford/workspace/netclaw-agent:/Users/crawford/workspace/netclaw-agent/webui</string>
+    <key>https_proxy</key>
+    <string>http://127.0.0.1:7897</string>
+    <key>http_proxy</key>
+    <string>http://127.0.0.1:7897</string>
+    <key>no_proxy</key>
+    <string>localhost,127.0.0.1,100.64.0.0/10,api.netclawapi.com,license.netclawsec.com,netclawsec.com</string>
+  </dict>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>KeepAlive</key>
+  <dict>
+    <key>SuccessfulExit</key>
+    <false/>
+    <key>Crashed</key>
+    <true/>
+  </dict>
+
+  <key>StandardOutPath</key>
+  <string>/Users/crawford/Library/Logs/netclaw-dashboard.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/crawford/Library/Logs/netclaw-dashboard.err.log</string>
+
+  <key>ProcessType</key>
+  <string>Background</string>
+
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+</dict>
+</plist>
