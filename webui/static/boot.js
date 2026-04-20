@@ -362,13 +362,13 @@ $('btnDownload').onclick=()=>{
   if(!S.session)return;
   const blob=new Blob([transcript()],{type:'text/markdown'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);
-  a.download=`hermes-${S.session.session_id}.md`;a.click();URL.revokeObjectURL(a.href);
+  a.download=`netclaw-${S.session.session_id}.md`;a.click();URL.revokeObjectURL(a.href);
 };
 $('btnExportJSON').onclick=()=>{
   if(!S.session)return;
   const url=`/api/session/export?session_id=${encodeURIComponent(S.session.session_id)}`;
   const a=document.createElement('a');a.href=url;
-  a.download=`hermes-${S.session.session_id}.json`;a.click();
+  a.download=`netclaw-${S.session.session_id}.json`;a.click();
 };
 $('btnImportJSON').onclick=()=>$('importFileInput').click();
 $('importFileInput').onchange=async(e)=>{
