@@ -1,6 +1,10 @@
-# Contributing to Hermes Agent
+# Contributing to NetClaw Agent
 
-Thank you for contributing to Hermes Agent! This guide covers everything you need: setting up your dev environment, understanding the architecture, deciding what to build, and getting your PR merged.
+> **NetClaw Agent** 由 [网钳科技 NetClawSec](https://netclawsec.com) 产品化与维护。Fork 结构与上游对齐策略见 [NETCLAW.md](NETCLAW.md)。
+> 提交 PR 请使用 `origin` → `netclawsec/netclaw-agent`。
+> References to "Hermes" throughout this doc refer to the underlying agent runtime — the product is distributed as **NetClaw Agent**.
+
+Thank you for contributing to NetClaw Agent! This guide covers everything you need: setting up your dev environment, understanding the architecture, deciding what to build, and getting your PR merged.
 
 ---
 

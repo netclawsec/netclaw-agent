@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 400" width="1600" height="400">
+  <defs>
+    <linearGradient id="purpleGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#B9A1D3"/>
+      <stop offset="55%" stop-color="#6E4A99"/>
+      <stop offset="100%" stop-color="#3E2866"/>
+    </linearGradient>
+    <linearGradient id="wordGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#6E4A99"/>
+      <stop offset="100%" stop-color="#3E2866"/>
+    </linearGradient>
+    <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#B9A1D3"/>
+      <stop offset="100%" stop-color="#6E4A99"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1600" height="400" fill="#ffffff"/>
+
+  <!-- Claw / W mark -->
+  <g transform="translate(100,90)">
+    <!-- Outer W stroke -->
+    <path d="M20 20
+             C20 20, 30 170, 70 220
+             C110 260, 160 250, 170 200
+             L185 110
+             L195 110
+             L210 200
+             C220 250, 270 260, 310 220
+             C350 170, 360 20, 360 20"
+          fill="none" stroke="url(#purpleGrad)" stroke-width="42"
+          stroke-linecap="round" stroke-linejoin="round"/>
+    <!-- Inner claw highlight -->
+    <path d="M70 60
+             C75 150, 95 200, 120 200"
+          fill="none" stroke="#B9A1D3" stroke-width="10" stroke-linecap="round" opacity="0.55"/>
+    <!-- Spark / flame hint -->
+    <path d="M55 40 C60 20, 75 15, 85 30 C75 40, 65 55, 55 40 Z"
+          fill="#B9A1D3" opacity="0.75"/>
+    <!-- Tech dot accent -->
+    <circle cx="310" cy="60" r="9" fill="#6E4A99"/>
+    <circle cx="330" cy="85" r="5" fill="#B9A1D3"/>
+  </g>
+
+  <!-- Wordmark -->
+  <g transform="translate(540,0)">
+    <text x="0" y="215"
+          font-family="-apple-system, 'SF Pro Display', 'Helvetica Neue', Helvetica, Arial, sans-serif"
+          font-size="150" font-weight="800"
+          fill="url(#wordGrad)"
+          letter-spacing="-4">NetClaw</text>
+    <text x="640" y="215"
+          font-family="-apple-system, 'SF Pro Display', 'Helvetica Neue', Helvetica, Arial, sans-serif"
+          font-size="150" font-weight="300"
+          fill="#6E4A99"
+          letter-spacing="-2">Agent</text>
+
+    <!-- Accent underline -->
+    <rect x="2" y="245" width="920" height="5" rx="2" fill="url(#accentGrad)" opacity="0.8"/>
+
+    <!-- Tagline -->
+    <text x="4" y="305"
+          font-family="-apple-system, 'PingFang SC', 'Helvetica Neue', Helvetica, Arial, sans-serif"
+          font-size="36" font-weight="500"
+          fill="#6E4A99" letter-spacing="2">网钳科技 · 自研通用智能体</text>
+    <text x="4" y="350"
+          font-family="-apple-system, 'SF Pro Display', 'Helvetica Neue', Helvetica, Arial, sans-serif"
+          font-size="26" font-weight="400"
+          fill="#8E72B5" letter-spacing="3">SELF-IMPROVING GENERAL-PURPOSE AI AGENT</text>
+  </g>
+</svg>

@@ -1,10 +1,12 @@
-# Hermes Agent Security Policy
+# NetClaw Agent Security Policy
 
-This document outlines the security protocols, trust model, and deployment hardening guidelines for the **Hermes Agent** project.
+This document outlines the security protocols, trust model, and deployment hardening guidelines for **NetClaw Agent**, the general-purpose AI agent maintained by [网钳科技 NetClawSec](https://netclawsec.com).
+
+> Subsequent references to "Hermes" refer to the underlying agent runtime that NetClaw Agent is built upon. See [NETCLAW.md](NETCLAW.md) for fork details.
 
 ## 1. Vulnerability Reporting
 
-Hermes Agent does **not** operate a bug bounty program. Security issues should be reported via [GitHub Security Advisories (GHSA)](https://github.com/NousResearch/hermes-agent/security/advisories/new) or by emailing **security@nousresearch.com**. Do not open public issues for security vulnerabilities.
+NetClaw Agent does **not** operate a bug bounty program. Security issues should be reported via [GitHub Security Advisories (GHSA)](https://github.com/netclawsec/netclaw-agent/security/advisories/new) or by emailing **security@netclawsec.com**. Do not open public issues for security vulnerabilities.
 
 ### Required Submission Details
 - **Title & Severity:** Concise description and CVSS score/rating.
