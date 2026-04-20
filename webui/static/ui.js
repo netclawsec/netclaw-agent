@@ -2118,15 +2118,22 @@ function renderFileTree(){
 function _renderTreeItems(container, entries, depth){
   for(const item of entries){
     const el=document.createElement('div');el.className='file-item';
-    el.style.paddingLeft=(8+depth*16)+'px';
+    el.setAttribute('data-depth', String(depth));
+    // VSCode-style indent: 12px per level, left padding starts at 4px.
+    el.style.paddingLeft=(4+depth*12)+'px';
 
     if(item.type==='dir'){
-      // Toggle arrow for directories
+      // Rotating chevron for directories
       const arrow=document.createElement('span');
       arrow.className='file-tree-toggle';
       const isExpanded=S._expandedDirs.has(item.path);
-      arrow.textContent=isExpanded?'\u25BE':'\u25B8';
+      if(isExpanded) arrow.classList.add('expanded');
       el.appendChild(arrow);
+    }else{
+      // Keep alignment with folder rows
+      const spacer=document.createElement('span');
+      spacer.className='file-tree-spacer';
+      el.appendChild(spacer);
     }
 
     // Icon
