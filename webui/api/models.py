@@ -1,6 +1,7 @@
 """
 Hermes Web UI -- Session model and in-memory session store.
 """
+
 import collections
 import json
 import logging
@@ -10,8 +11,15 @@ from pathlib import Path
 
 import api.config as _cfg
 from api.config import (
-    SESSION_DIR, SESSION_INDEX_FILE, SESSIONS, SESSIONS_MAX,
-    LOCK, DEFAULT_WORKSPACE, DEFAULT_MODEL, PROJECTS_FILE, HOME
+    SESSION_DIR,
+    SESSION_INDEX_FILE,
+    SESSIONS,
+    SESSIONS_MAX,
+    LOCK,
+    DEFAULT_WORKSPACE,
+    DEFAULT_MODEL,
+    PROJECTS_FILE,
+    HOME,
 )
 from api.workspace import get_last_workspace
 
@@ -21,36 +29,53 @@ logger = logging.getLogger(__name__)
 def _write_session_index():
     """Rebuild the session index file for O(1) future reads."""
     entries = []
-    for p in SESSION_DIR.glob('*.json'):
-        if p.name.startswith('_'): continue
+    for p in SESSION_DIR.glob("*.json"):
+        if p.name.startswith("_"):
+            continue
         try:
             s = Session.load(p.stem)
-            if s: entries.append(s.compact())
+            if s:
+                entries.append(s.compact())
         except Exception:
             logger.debug("Failed to load session from %s", p)
     with LOCK:
         for s in SESSIONS.values():
-            if not any(e['session_id'] == s.session_id for e in entries):
+            if not any(e["session_id"] == s.session_id for e in entries):
                 entries.append(s.compact())
-    entries.sort(key=lambda s: s['updated_at'], reverse=True)
-    SESSION_INDEX_FILE.write_text(json.dumps(entries, ensure_ascii=False, indent=2), encoding='utf-8')
+    entries.sort(key=lambda s: s["updated_at"], reverse=True)
+    SESSION_INDEX_FILE.write_text(
+        json.dumps(entries, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
 
 
 class Session:
-    def __init__(self, session_id: str=None, title: str='Untitled',
-                 workspace=str(DEFAULT_WORKSPACE), model=DEFAULT_MODEL,
-                 messages=None, created_at=None, updated_at=None,
-                 tool_calls=None, pinned: bool=False, archived: bool=False,
-                 project_id: str=None, profile=None,
-                 input_tokens: int=0, output_tokens: int=0, estimated_cost=None,
-                 personality=None,
-                 active_stream_id: str=None,
-                 pending_user_message: str=None,
-                 pending_attachments=None,
-                 pending_started_at=None,
-                 compression_anchor_visible_idx=None,
-                 compression_anchor_message_key=None,
-                 **kwargs):
+    def __init__(
+        self,
+        session_id: str = None,
+        title: str = "Untitled",
+        workspace=str(DEFAULT_WORKSPACE),
+        model=DEFAULT_MODEL,
+        messages=None,
+        created_at=None,
+        updated_at=None,
+        tool_calls=None,
+        pinned: bool = False,
+        archived: bool = False,
+        project_id: str = None,
+        profile=None,
+        input_tokens: int = 0,
+        output_tokens: int = 0,
+        estimated_cost=None,
+        personality=None,
+        active_stream_id: str = None,
+        pending_user_message: str = None,
+        pending_attachments=None,
+        pending_started_at=None,
+        compression_anchor_visible_idx=None,
+        compression_anchor_message_key=None,
+        yolo: bool = False,
+        **kwargs,
+    ):
         self.session_id = session_id or uuid.uuid4().hex[:12]
         self.title = title
         self.workspace = str(Path(workspace).expanduser().resolve())
@@ -73,50 +98,55 @@ class Session:
         self.pending_started_at = pending_started_at
         self.compression_anchor_visible_idx = compression_anchor_visible_idx
         self.compression_anchor_message_key = compression_anchor_message_key
+        self.yolo = bool(yolo)
 
     @property
     def path(self):
-        return SESSION_DIR / f'{self.session_id}.json'
+        return SESSION_DIR / f"{self.session_id}.json"
 
     def save(self, touch_updated_at: bool = True) -> None:
         if touch_updated_at:
             self.updated_at = time.time()
         self.path.write_text(
             json.dumps(self.__dict__, ensure_ascii=False, indent=2),
-            encoding='utf-8',
+            encoding="utf-8",
         )
         _write_session_index()
 
     @classmethod
     def load(cls, sid):
         # Validate session ID format to prevent path traversal
-        if not sid or not all(c in '0123456789abcdefghijklmnopqrstuvwxyz_' for c in sid):
+        if not sid or not all(
+            c in "0123456789abcdefghijklmnopqrstuvwxyz_" for c in sid
+        ):
             return None
-        p = SESSION_DIR / f'{sid}.json'
+        p = SESSION_DIR / f"{sid}.json"
         if not p.exists():
             return None
-        return cls(**json.loads(p.read_text(encoding='utf-8')))
+        return cls(**json.loads(p.read_text(encoding="utf-8")))
 
     def compact(self) -> dict:
         return {
-            'session_id': self.session_id,
-            'title': self.title,
-            'workspace': self.workspace,
-            'model': self.model,
-            'message_count': len(self.messages),
-            'created_at': self.created_at,
-            'updated_at': self.updated_at,
-            'pinned': self.pinned,
-            'archived': self.archived,
-            'project_id': self.project_id,
-            'profile': self.profile,
-            'input_tokens': self.input_tokens,
-            'output_tokens': self.output_tokens,
-            'estimated_cost': self.estimated_cost,
-            'personality': self.personality,
-            'compression_anchor_visible_idx': self.compression_anchor_visible_idx,
-            'compression_anchor_message_key': self.compression_anchor_message_key,
+            "session_id": self.session_id,
+            "title": self.title,
+            "workspace": self.workspace,
+            "model": self.model,
+            "yolo": bool(getattr(self, "yolo", False)),
+            "message_count": len(self.messages),
+            "created_at": self.created_at,
+            "updated_at": self.updated_at,
+            "pinned": self.pinned,
+            "archived": self.archived,
+            "project_id": self.project_id,
+            "profile": self.profile,
+            "input_tokens": self.input_tokens,
+            "output_tokens": self.output_tokens,
+            "estimated_cost": self.estimated_cost,
+            "personality": self.personality,
+            "compression_anchor_visible_idx": self.compression_anchor_visible_idx,
+            "compression_anchor_message_key": self.compression_anchor_message_key,
         }
+
 
 def get_session(sid):
     with LOCK:
@@ -133,14 +163,20 @@ def get_session(sid):
         return s
     raise KeyError(sid)
 
+
 def new_session(workspace=None, model=None):
     # Use _cfg.DEFAULT_MODEL (not the import-time snapshot) so save_settings() changes take effect
     try:
         from api.profiles import get_active_profile_name
+
         _profile = get_active_profile_name()
     except ImportError:
         _profile = None
-    s = Session(workspace=workspace or get_last_workspace(), model=model or _cfg.DEFAULT_MODEL, profile=_profile)
+    s = Session(
+        workspace=workspace or get_last_workspace(),
+        model=model or _cfg.DEFAULT_MODEL,
+        profile=_profile,
+    )
     with LOCK:
         SESSIONS[s.session_id] = s
         SESSIONS.move_to_end(s.session_id)
@@ -149,53 +185,74 @@ def new_session(workspace=None, model=None):
     s.save()
     return s
 
+
 def all_sessions():
     # Phase C: try index first for O(1) read; fall back to full scan
     if SESSION_INDEX_FILE.exists():
         try:
-            index = json.loads(SESSION_INDEX_FILE.read_text(encoding='utf-8'))
+            index = json.loads(SESSION_INDEX_FILE.read_text(encoding="utf-8"))
             # Overlay any in-memory sessions that may be newer than the index
-            index_map = {s['session_id']: s for s in index}
+            index_map = {s["session_id"]: s for s in index}
             with LOCK:
                 for s in SESSIONS.values():
                     index_map[s.session_id] = s.compact()
-            result = sorted(index_map.values(), key=lambda s: (s.get('pinned', False), s['updated_at']), reverse=True)
+            result = sorted(
+                index_map.values(),
+                key=lambda s: (s.get("pinned", False), s["updated_at"]),
+                reverse=True,
+            )
             # Hide empty Untitled sessions from the UI (created by tests, page refreshes, etc.)
-            result = [s for s in result if not (s.get('title','Untitled')=='Untitled' and s.get('message_count',0)==0)]
+            result = [
+                s
+                for s in result
+                if not (
+                    s.get("title", "Untitled") == "Untitled"
+                    and s.get("message_count", 0) == 0
+                )
+            ]
             # Backfill: sessions created before Sprint 22 have no profile tag.
             # Attribute them to 'default' so the client profile filter works correctly.
             for s in result:
-                if not s.get('profile'):
-                    s['profile'] = 'default'
+                if not s.get("profile"):
+                    s["profile"] = "default"
             return result
         except Exception:
             logger.debug("Failed to load session index, falling back to full scan")
     # Full scan fallback
     out = []
-    for p in SESSION_DIR.glob('*.json'):
-        if p.name.startswith('_'): continue
+    for p in SESSION_DIR.glob("*.json"):
+        if p.name.startswith("_"):
+            continue
         try:
             s = Session.load(p.stem)
-            if s: out.append(s)
+            if s:
+                out.append(s)
         except Exception:
             logger.debug("Failed to load session from %s", p)
     for s in SESSIONS.values():
-        if all(s.session_id != x.session_id for x in out): out.append(s)
-    out.sort(key=lambda s: (getattr(s, 'pinned', False), s.updated_at), reverse=True)
-    result = [s.compact() for s in out if not (s.title=='Untitled' and len(s.messages)==0)]
+        if all(s.session_id != x.session_id for x in out):
+            out.append(s)
+    out.sort(key=lambda s: (getattr(s, "pinned", False), s.updated_at), reverse=True)
+    result = [
+        s.compact() for s in out if not (s.title == "Untitled" and len(s.messages) == 0)
+    ]
     for s in result:
-        if not s.get('profile'):
-            s['profile'] = 'default'
+        if not s.get("profile"):
+            s["profile"] = "default"
     return result
 
 
-def title_from(messages, fallback: str='Untitled'):
+def title_from(messages, fallback: str = "Untitled"):
     """Derive a session title from the first user message."""
     for m in messages:
-        if m.get('role') == 'user':
-            c = m.get('content', '')
+        if m.get("role") == "user":
+            c = m.get("content", "")
             if isinstance(c, list):
-                c = ' '.join(p.get('text', '') for p in c if isinstance(p, dict) and p.get('type') == 'text')
+                c = " ".join(
+                    p.get("text", "")
+                    for p in c
+                    if isinstance(p, dict) and p.get("type") == "text"
+                )
             text = str(c).strip()
             if text:
                 return text[:64]
@@ -204,25 +261,29 @@ def title_from(messages, fallback: str='Untitled'):
 
 # ── Project helpers ──────────────────────────────────────────────────────────
 
+
 def load_projects() -> list:
     """Load project list from disk. Returns list of project dicts."""
     if not PROJECTS_FILE.exists():
         return []
     try:
-        return json.loads(PROJECTS_FILE.read_text(encoding='utf-8'))
+        return json.loads(PROJECTS_FILE.read_text(encoding="utf-8"))
     except Exception:
         return []
 
+
 def save_projects(projects) -> None:
     """Write project list to disk."""
-    PROJECTS_FILE.write_text(json.dumps(projects, ensure_ascii=False, indent=2), encoding='utf-8')
+    PROJECTS_FILE.write_text(
+        json.dumps(projects, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
 
 
 def import_cli_session(
     session_id: str,
     title: str,
     messages,
-    model: str='unknown',
+    model: str = "unknown",
     profile=None,
     created_at=None,
     updated_at=None,
@@ -246,6 +307,7 @@ def import_cli_session(
 
 # ── CLI session bridge ──────────────────────────────────────────────────────
 
+
 def get_cli_sessions() -> list:
     """Read CLI sessions from the agent's SQLite store and return them as
     dicts in a format the WebUI sidebar can render alongside local sessions.
@@ -255,6 +317,7 @@ def get_cli_sessions() -> list:
     crashes the WebUI.
     """
     import os
+
     cli_sessions = []
     try:
         import sqlite3
@@ -271,11 +334,14 @@ def get_cli_sessions() -> list:
     # active one after a profile switch).
     try:
         from api.profiles import get_active_hermes_home
+
         hermes_home = Path(get_active_hermes_home()).expanduser().resolve()
     except Exception:
-        hermes_home = Path(os.getenv('HERMES_HOME', str(HOME / '.hermes'))).expanduser().resolve()
+        hermes_home = (
+            Path(os.getenv("HERMES_HOME", str(HOME / ".hermes"))).expanduser().resolve()
+        )
 
-    db_path = hermes_home / 'state.db'
+    db_path = hermes_home / "state.db"
     if not db_path.exists():
         return cli_sessions
 
@@ -283,6 +349,7 @@ def get_cli_sessions() -> list:
     # with the WebUI profile filter (available since Sprint 22).
     try:
         from api.profiles import get_active_profile_name
+
         _cli_profile = get_active_profile_name()
     except ImportError:
         _cli_profile = None  # older agent -- fall back to no profile
@@ -303,29 +370,33 @@ def get_cli_sessions() -> list:
                 LIMIT 200
             """)
             for row in cur.fetchall():
-                sid = row['id']
-                raw_ts = row['last_activity'] or row['started_at']
+                sid = row["id"]
+                raw_ts = row["last_activity"] or row["started_at"]
                 # Prefer the CLI session's own profile from the DB; fall back to
                 # the active CLI profile so sidebar filtering works either way.
-                profile = _cli_profile  # CLI DB has no profile column; use active profile
+                profile = (
+                    _cli_profile  # CLI DB has no profile column; use active profile
+                )
 
-                _source = row['source'] or 'cli'
-                _display_title = row['title'] or f'{_source.title()} Session'
-                cli_sessions.append({
-                    'session_id': sid,
-                    'title': _display_title,
-                    'workspace': str(get_last_workspace()),
-                    'model': row['model'] or None,
-                    'message_count': row['message_count'] or 0,
-                    'created_at': row['started_at'],
-                    'updated_at': raw_ts,
-                    'pinned': False,
-                    'archived': False,
-                    'project_id': None,
-                    'profile': profile,
-                    'source_tag': _source,
-                    'is_cli_session': True,
-                })
+                _source = row["source"] or "cli"
+                _display_title = row["title"] or f"{_source.title()} Session"
+                cli_sessions.append(
+                    {
+                        "session_id": sid,
+                        "title": _display_title,
+                        "workspace": str(get_last_workspace()),
+                        "model": row["model"] or None,
+                        "message_count": row["message_count"] or 0,
+                        "created_at": row["started_at"],
+                        "updated_at": raw_ts,
+                        "pinned": False,
+                        "archived": False,
+                        "project_id": None,
+                        "profile": profile,
+                        "source_tag": _source,
+                        "is_cli_session": True,
+                    }
+                )
     except Exception:
         # DB schema changed, locked, or corrupted -- silently degrade
         return []
@@ -339,6 +410,7 @@ def get_cli_session_messages(sid) -> list:
     Returns empty list on any error.
     """
     import os
+
     try:
         import sqlite3
     except ImportError:
@@ -346,10 +418,13 @@ def get_cli_session_messages(sid) -> list:
 
     try:
         from api.profiles import get_active_hermes_home
+
         hermes_home = Path(get_active_hermes_home()).expanduser().resolve()
     except Exception:
-        hermes_home = Path(os.getenv('HERMES_HOME', str(HOME / '.hermes'))).expanduser().resolve()
-    db_path = hermes_home / 'state.db'
+        hermes_home = (
+            Path(os.getenv("HERMES_HOME", str(HOME / ".hermes"))).expanduser().resolve()
+        )
+    db_path = hermes_home / "state.db"
     if not db_path.exists():
         return []
 
@@ -357,19 +432,24 @@ def get_cli_session_messages(sid) -> list:
         with sqlite3.connect(str(db_path)) as conn:
             conn.row_factory = sqlite3.Row
             cur = conn.cursor()
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT role, content, timestamp
                 FROM messages
                 WHERE session_id = ?
                 ORDER BY timestamp ASC
-            """, (sid,))
+            """,
+                (sid,),
+            )
             msgs = []
             for row in cur.fetchall():
-                msgs.append({
-                    'role': row['role'],
-                    'content': row['content'],
-                    'timestamp': row['timestamp'],
-                })
+                msgs.append(
+                    {
+                        "role": row["role"],
+                        "content": row["content"],
+                        "timestamp": row["timestamp"],
+                    }
+                )
     except Exception:
         return []
     return msgs
@@ -380,6 +460,7 @@ def delete_cli_session(sid) -> bool:
     Returns True if deleted, False if not found or error.
     """
     import os
+
     try:
         import sqlite3
     except ImportError:
@@ -387,10 +468,13 @@ def delete_cli_session(sid) -> bool:
 
     try:
         from api.profiles import get_active_hermes_home
+
         hermes_home = Path(get_active_hermes_home()).expanduser().resolve()
     except Exception:
-        hermes_home = Path(os.getenv('HERMES_HOME', str(HOME / '.hermes'))).expanduser().resolve()
-    db_path = hermes_home / 'state.db'
+        hermes_home = (
+            Path(os.getenv("HERMES_HOME", str(HOME / ".hermes"))).expanduser().resolve()
+        )
+    db_path = hermes_home / "state.db"
     if not db_path.exists():
         return False
 

@@ -63,23 +63,25 @@ def _normalize_host_port(value: str) -> tuple[str, str | None]:
     Handles IPv6 bracket notation, e.g. [::1]:8080."""
     value = value.strip().lower()
     if not value:
-        return '', None
-    if value.startswith('['):
-        end = value.find(']')
+        return "", None
+    if value.startswith("["):
+        end = value.find("]")
         if end != -1:
             host = value[1:end]
             rest = value[end + 1 :]
-            if rest.startswith(':') and rest[1:].isdigit():
+            if rest.startswith(":") and rest[1:].isdigit():
                 return host, rest[1:]
             return host, None
-    if value.count(':') == 1:
-        host, port = value.rsplit(':', 1)
+    if value.count(":") == 1:
+        host, port = value.rsplit(":", 1)
         if port.isdigit():
             return host, port
     return value, None
 
 
-def _ports_match(origin_scheme: str, origin_port: str | None, allowed_port: str | None) -> bool:
+def _ports_match(
+    origin_scheme: str, origin_port: str | None, allowed_port: str | None
+) -> bool:
     """Return True when two ports should be considered equivalent, scheme-aware.
 
     Treats an absent port as the scheme default: port 80 for http, port 443 for https.
@@ -88,7 +90,7 @@ def _ports_match(origin_scheme: str, origin_port: str | None, allowed_port: str 
     if origin_port == allowed_port:
         return True
     # Determine the default port for the origin's scheme
-    default = '443' if origin_scheme == 'https' else '80'
+    default = "443" if origin_scheme == "https" else "80"
     if not origin_port and allowed_port == default:
         return True
     if not allowed_port and origin_port == default:
@@ -102,18 +104,20 @@ def _allowed_public_origins() -> set[str]:
     Each entry must include the scheme, e.g. https://myapp.example.com:8000.
     Entries without a scheme are silently skipped and a warning is printed.
     """
-    raw = os.getenv('HERMES_WEBUI_ALLOWED_ORIGINS', '')
+    raw = os.getenv("HERMES_WEBUI_ALLOWED_ORIGINS", "")
     result = set()
-    for value in raw.split(','):
-        value = value.strip().rstrip('/').lower()
+    for value in raw.split(","):
+        value = value.strip().rstrip("/").lower()
         if not value:
             continue
-        if not (value.startswith('http://') or value.startswith('https://')):
+        if not (value.startswith("http://") or value.startswith("https://")):
             import sys
+
             print(
                 f"[webui] WARNING: HERMES_WEBUI_ALLOWED_ORIGINS entry {value!r} is missing "
                 f"the scheme (expected https://hostname or http://hostname). Entry ignored.",
-                flush=True, file=sys.stderr,
+                flush=True,
+                file=sys.stderr,
             )
             continue
         result.add(value)
@@ -133,10 +137,10 @@ def _check_csrf(handler) -> bool:
     if not m:
         return False
     origin_host = m.group(1)
-    origin_scheme = m.group(0).split('://')[0].lower()  # 'http' or 'https'
+    origin_scheme = m.group(0).split("://")[0].lower()  # 'http' or 'https'
     origin_name, origin_port = _normalize_host_port(origin_host)
     # Check against explicitly allowed public origins (env var)
-    origin_value = m.group(0).rstrip('/').lower()
+    origin_value = m.group(0).rstrip("/").lower()
     if origin_value in _allowed_public_origins():
         return True
     # Allow same-origin: check Host, X-Forwarded-Host (reverse proxy), and
@@ -153,7 +157,9 @@ def _check_csrf(handler) -> bool:
     ]
     for allowed in allowed_hosts:
         allowed_name, allowed_port = _normalize_host_port(allowed)
-        if origin_name == allowed_name and _ports_match(origin_scheme, origin_port, allowed_port):
+        if origin_name == allowed_name and _ports_match(
+            origin_scheme, origin_port, allowed_port
+        ):
             return True
     return False
 
@@ -239,6 +245,7 @@ def submit_pending(session_key: str, approval: dict) -> None:
     # managed by check_all_command_guards / register_gateway_notify), which is
     # unaffected by _pending. The _pending dict is only used for UI polling.
 
+
 # Clarify prompts (optional -- graceful fallback if agent not available)
 try:
     from api.clarify import (
@@ -323,9 +330,19 @@ def _resolve_login_locale_key(raw_lang: str | None) -> str:
             return key
 
     # Common Chinese aliases.
-    if lower == "zh" or lower.startswith("zh-cn") or lower.startswith("zh-sg") or lower.startswith("zh-hans"):
+    if (
+        lower == "zh"
+        or lower.startswith("zh-cn")
+        or lower.startswith("zh-sg")
+        or lower.startswith("zh-hans")
+    ):
         return "zh"
-    if lower.startswith("zh-tw") or lower.startswith("zh-hk") or lower.startswith("zh-mo") or lower.startswith("zh-hant"):
+    if (
+        lower.startswith("zh-tw")
+        or lower.startswith("zh-hk")
+        or lower.startswith("zh-mo")
+        or lower.startswith("zh-hant")
+    ):
         return "zh-Hant" if "zh-Hant" in _LOGIN_LOCALE else "zh"
 
     # Fallback to base language subtag (e.g. en-US -> en).
@@ -334,6 +351,7 @@ def _resolve_login_locale_key(raw_lang: str | None) -> str:
         if key.lower() == base:
             return key
     return "en"
+
 
 # ── Login page (self-contained, no external deps) ────────────────────────────
 _LOGIN_PAGE_HTML = """<!doctype html>
@@ -390,9 +408,7 @@ def handle_get(handler, parsed) -> bool:
         _settings = load_settings()
         _bn = _html.escape(_settings.get("bot_name") or "Hermes")
         _lang = _settings.get("language", "en")
-        _login_strings = _LOGIN_LOCALE[
-            _resolve_login_locale_key(_lang)
-        ]
+        _login_strings = _LOGIN_LOCALE[_resolve_login_locale_key(_lang)]
         _page = (
             _LOGIN_PAGE_HTML.replace("{{BOT_NAME}}", _bn)
             .replace("{{BOT_NAME_INITIAL}}", _bn[0].upper())
@@ -630,7 +646,7 @@ def handle_get(handler, parsed) -> bool:
     if parsed.path == "/api/chat/stream":
         return _handle_sse_stream(handler, parsed)
 
-    if parsed.path == '/api/sessions/gateway/stream':
+    if parsed.path == "/api/sessions/gateway/stream":
         return _handle_gateway_sse_stream(handler)
 
     if parsed.path == "/api/media":
@@ -761,7 +777,11 @@ def handle_post(handler, parsed) -> bool:
 
     if parsed.path == "/api/session/new":
         try:
-            workspace = str(resolve_trusted_workspace(body.get("workspace"))) if body.get("workspace") else None
+            workspace = (
+                str(resolve_trusted_workspace(body.get("workspace")))
+                if body.get("workspace")
+                else None
+            )
         except ValueError as e:
             return bad(handler, str(e))
         s = new_session(workspace=workspace, model=body.get("model"))
@@ -845,6 +865,17 @@ def handle_post(handler, parsed) -> bool:
             return bad(handler, str(e))
         s.workspace = new_ws
         s.model = body.get("model", s.model)
+        if "yolo" in body:
+            s.yolo = bool(body.get("yolo"))
+            try:
+                from tools.approval import (
+                    enable_session_yolo,
+                    disable_session_yolo,
+                )
+
+                (enable_session_yolo if s.yolo else disable_session_yolo)(s.session_id)
+            except ImportError:
+                pass
         s.save()
         set_last_workspace(new_ws)
         return j(handler, {"session": s.compact() | {"messages": s.messages}})
@@ -853,7 +884,7 @@ def handle_post(handler, parsed) -> bool:
         sid = body.get("session_id", "")
         if not sid:
             return bad(handler, "session_id is required")
-        if not all(c in '0123456789abcdefghijklmnopqrstuvwxyz_' for c in sid):
+        if not all(c in "0123456789abcdefghijklmnopqrstuvwxyz_" for c in sid):
             return bad(handler, "Invalid session_id", 400)
         # Delete from WebUI session store
         with LOCK:
@@ -994,7 +1025,7 @@ def handle_post(handler, parsed) -> bool:
         try:
             from api.profiles import switch_profile, _validate_profile_name
 
-            if name != 'default':
+            if name != "default":
                 _validate_profile_name(name)
             result = switch_profile(name)
             return j(handler, result)
@@ -1115,8 +1146,10 @@ def handle_post(handler, parsed) -> bool:
         # the check when they control network access themselves (e.g. firewall + VPN).
         from api.auth import is_auth_enabled
         import os as _os
+
         if not is_auth_enabled() and not _os.getenv("HERMES_WEBUI_ONBOARDING_OPEN"):
             import ipaddress
+
             try:
                 # Prefer forwarded headers set by reverse proxies
                 _xff = handler.headers.get("X-Forwarded-For", "").split(",")[0].strip()
@@ -1128,7 +1161,11 @@ def handle_post(handler, parsed) -> bool:
             except ValueError:
                 is_local = False
             if not is_local:
-                return bad(handler, "Onboarding setup is only available from local networks when auth is not enabled. To bypass this on a remote server, set HERMES_WEBUI_ONBOARDING_OPEN=1.", 403)
+                return bad(
+                    handler,
+                    "Onboarding setup is only available from local networks when auth is not enabled. To bypass this on a remote server, set HERMES_WEBUI_ONBOARDING_OPEN=1.",
+                    403,
+                )
         try:
             return j(handler, apply_onboarding_setup(body))
         except ValueError as e:
@@ -1252,7 +1289,9 @@ def handle_post(handler, parsed) -> bool:
                             s.project_id = None
                             s.save()
                         except Exception:
-                            logger.debug("Failed to update session %s", entry.get("session_id"))
+                            logger.debug(
+                                "Failed to update session %s", entry.get("session_id")
+                            )
             except Exception:
                 logger.debug("Failed to load session index for project unlink")
         return j(handler, {"ok": True})
@@ -1324,6 +1363,7 @@ def handle_post(handler, parsed) -> bool:
 
     return False  # 404
 
+
 # ── GET route helpers ─────────────────────────────────────────────────────────
 
 # MIME types for static file serving. Hoisted to module scope to avoid
@@ -1343,7 +1383,13 @@ _STATIC_MIME = {
     "woff2": "font/woff2",
 }
 # MIME types that are text-based and should carry charset=utf-8
-_TEXT_MIME_TYPES = {"text/css", "application/javascript", "text/html", "image/svg+xml", "text/plain"}
+_TEXT_MIME_TYPES = {
+    "text/css",
+    "application/javascript",
+    "text/html",
+    "image/svg+xml",
+    "text/plain",
+}
 
 
 def _serve_static(handler, parsed):
@@ -1504,38 +1550,40 @@ def _handle_gateway_sse_stream(handler):
     """
     # Check if the feature is enabled
     settings = load_settings()
-    if not settings.get('show_cli_sessions'):
-        return j(handler, {'error': 'agent sessions not enabled'}, status=404)
+    if not settings.get("show_cli_sessions"):
+        return j(handler, {"error": "agent sessions not enabled"}, status=404)
 
     from api.gateway_watcher import get_watcher
+
     watcher = get_watcher()
     if watcher is None:
-        return j(handler, {'error': 'watcher not started'}, status=503)
+        return j(handler, {"error": "watcher not started"}, status=503)
 
     handler.send_response(200)
-    handler.send_header('Content-Type', 'text/event-stream; charset=utf-8')
-    handler.send_header('Cache-Control', 'no-cache')
-    handler.send_header('X-Accel-Buffering', 'no')
-    handler.send_header('Connection', 'keep-alive')
+    handler.send_header("Content-Type", "text/event-stream; charset=utf-8")
+    handler.send_header("Cache-Control", "no-cache")
+    handler.send_header("X-Accel-Buffering", "no")
+    handler.send_header("Connection", "keep-alive")
     handler.end_headers()
 
     q = watcher.subscribe()
     try:
         # Send initial snapshot immediately
         from api.models import get_cli_sessions
+
         initial = get_cli_sessions()
-        _sse(handler, 'sessions_changed', {'sessions': initial})
+        _sse(handler, "sessions_changed", {"sessions": initial})
 
         while True:
             try:
                 event_data = q.get(timeout=30)
             except queue.Empty:
-                handler.wfile.write(b': keepalive\n\n')
+                handler.wfile.write(b": keepalive\n\n")
                 handler.wfile.flush()
                 continue
             if event_data is None:
                 break  # watcher is stopping
-            _sse(handler, event_data.get('type', 'sessions_changed'), event_data)
+            _sse(handler, event_data.get("type", "sessions_changed"), event_data)
     except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
         pass
     finally:
@@ -1549,20 +1597,18 @@ def _content_disposition_value(disposition: str, filename: str) -> str:
 
     safe_name = Path(filename).name.replace("\r", "").replace("\n", "")
     ascii_fallback = "".join(
-        ch if 32 <= ord(ch) < 127 and ch not in {'"', '\\'} else "_"
-        for ch in safe_name
+        ch if 32 <= ord(ch) < 127 and ch not in {'"', "\\"} else "_" for ch in safe_name
     ).strip(" .")
     if not ascii_fallback:
         suffix = Path(safe_name).suffix
         ascii_suffix = "".join(
-            ch if 32 <= ord(ch) < 127 and ch not in {'"', '\\'} else "_"
+            ch if 32 <= ord(ch) < 127 and ch not in {'"', "\\"} else "_"
             for ch in suffix
         )
         ascii_fallback = f"download{ascii_suffix}" if ascii_suffix else "download"
     quoted_name = _up.quote(safe_name, safe="")
     return (
-        f'{disposition}; filename="{ascii_fallback}"; '
-        f"filename*=UTF-8''{quoted_name}"
+        f"{disposition}; filename=\"{ascii_fallback}\"; filename*=UTF-8''{quoted_name}"
     )
 
 
@@ -1578,6 +1624,7 @@ def _handle_media(handler, parsed):
     """
     import os as _os
     from api.auth import is_auth_enabled, parse_cookie, verify_session
+
     _HOME = Path(_os.path.expanduser("~"))
     _HERMES_HOME = Path(_os.getenv("HERMES_HOME", str(_HOME / ".hermes"))).expanduser()
 
@@ -1613,6 +1660,7 @@ def _handle_media(handler, parsed):
     # Also allow the active workspace directory (where screenshots land)
     try:
         from api.workspace import get_last_workspace
+
         ws = Path(get_last_workspace()).resolve()
         if ws.is_dir():
             allowed_roots.append(ws)
@@ -1635,8 +1683,12 @@ def _handle_media(handler, parsed):
 
     # Only serve image types inline; everything else is a download
     _INLINE_IMAGE_TYPES = {
-        "image/png", "image/jpeg", "image/gif", "image/webp",
-        "image/x-icon", "image/bmp",
+        "image/png",
+        "image/jpeg",
+        "image/gif",
+        "image/webp",
+        "image/x-icon",
+        "image/bmp",
     }
     _DOWNLOAD_TYPES = {"image/svg+xml"}  # SVG: XSS risk, force download
 
@@ -1815,6 +1867,7 @@ def _handle_live_models(handler, parsed):
 
     try:
         from api.config import get_config as _gc
+
         cfg = _gc()
         if not provider:
             provider = cfg.get("model", {}).get("provider") or ""
@@ -1827,17 +1880,27 @@ def _handle_live_models(handler, parsed):
         try:
             import sys as _sys
             import os as _os
-            _agent_dir = _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
-                                       "..", "..", ".hermes", "hermes-agent")
+
+            _agent_dir = _os.path.join(
+                _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
+                "..",
+                "..",
+                ".hermes",
+                "hermes-agent",
+            )
             _agent_dir = _os.path.normpath(_agent_dir)
             if _agent_dir not in _sys.path:
                 _sys.path.insert(0, _agent_dir)
             from hermes_cli.models import provider_model_ids as _pmi
+
             ids = _pmi(provider)
         except Exception as _import_err:
-            logger.debug("provider_model_ids import failed for %s: %s", provider, _import_err)
+            logger.debug(
+                "provider_model_ids import failed for %s: %s", provider, _import_err
+            )
             # Last resort: return the WebUI's own static catalog
             from api.config import _PROVIDER_MODELS as _pm
+
             ids = [m["id"] for m in _pm.get(provider, [])]
 
         if not ids:
@@ -1854,8 +1917,18 @@ def _handle_live_models(handler, parsed):
                 pl = p.lower()
                 if pl == "gpt":
                     result.append("GPT")
-                elif pl in ("claude", "gemini", "gemma", "llama", "mistral",
-                            "qwen", "deepseek", "grok", "kimi", "glm"):
+                elif pl in (
+                    "claude",
+                    "gemini",
+                    "gemma",
+                    "llama",
+                    "mistral",
+                    "qwen",
+                    "deepseek",
+                    "grok",
+                    "kimi",
+                    "glm",
+                ):
                     result.append(p.capitalize())
                 elif p[:1].isdigit():
                     result.append(p)  # version numbers: 5.4, 3.5, 4.6 — unchanged
@@ -1868,8 +1941,10 @@ def _handle_live_models(handler, parsed):
             return label
 
         models_out = [{"id": mid, "label": _make_label(mid)} for mid in ids if mid]
-        return j(handler, {"provider": provider, "models": models_out,
-                           "count": len(models_out)})
+        return j(
+            handler,
+            {"provider": provider, "models": models_out, "count": len(models_out)},
+        )
 
     except Exception as _e:
         logger.debug("_handle_live_models failed for %s: %s", provider, _e)
@@ -2070,6 +2145,14 @@ def _handle_chat_sync(handler, body):
         old_session_key = os.environ.get("HERMES_SESSION_KEY")
         os.environ["HERMES_EXEC_ASK"] = "1"
         os.environ["HERMES_SESSION_KEY"] = s.session_id
+    # Re-apply any persisted per-session YOLO flag so it survives server restarts.
+    if getattr(s, "yolo", False):
+        try:
+            from tools.approval import enable_session_yolo
+
+            enable_session_yolo(s.session_id)
+        except ImportError:
+            pass
     try:
         from run_agent import AIAgent
 
@@ -2116,7 +2199,10 @@ def _handle_chat_sync(handler, body):
                 "write_file, read_file, search_files, terminal workdir, and patch. "
                 "Never fall back to a hardcoded path when this tag is present."
             )
-            from api.streaming import _sanitize_messages_for_api, _restore_reasoning_metadata
+            from api.streaming import (
+                _sanitize_messages_for_api,
+                _restore_reasoning_metadata,
+            )
 
             _previous_messages = list(s.messages or [])
 
@@ -2514,7 +2600,13 @@ def _handle_session_compress(handler, body):
                     ).strip()
                 else:
                     text = str(content or "").strip()
-                if text or has_attachments or has_tool_calls or has_tool_use or has_reasoning:
+                if (
+                    text
+                    or has_attachments
+                    or has_tool_calls
+                    or has_tool_use
+                    or has_reasoning
+                ):
                     out.append(m)
                 continue
             if isinstance(content, list):
@@ -2566,7 +2658,9 @@ def _handle_session_compress(handler, body):
     # prevents a user from forwarding an unbounded string into the compressor
     # prompt path. No privilege boundary here (user prompting themself), just
     # cheap bound-checking.
-    focus_topic = str(body.get("focus_topic") or body.get("topic") or "").strip()[:500] or None
+    focus_topic = (
+        str(body.get("focus_topic") or body.get("topic") or "").strip()[:500] or None
+    )
 
     try:
         s = get_session(sid)
@@ -2574,14 +2668,21 @@ def _handle_session_compress(handler, body):
         return bad(handler, "Session not found", 404)
 
     if getattr(s, "active_stream_id", None):
-        return bad(handler, "Session is still streaming; wait for the current turn to finish.", 409)
+        return bad(
+            handler,
+            "Session is still streaming; wait for the current turn to finish.",
+            409,
+        )
 
     try:
         from api.streaming import _sanitize_messages_for_api
 
         messages = _sanitize_messages_for_api(s.messages)
         if len(messages) < 4:
-            return bad(handler, "Not enough conversation to compress (need at least 4 messages).")
+            return bad(
+                handler,
+                "Not enough conversation to compress (need at least 4 messages).",
+            )
 
         def _fallback_estimate_messages_tokens_rough(msgs):
             """Fallback heuristic token estimate when runtime metadata helpers are absent.
@@ -2606,9 +2707,19 @@ def _handle_session_compress(handler, body):
                 total += len(content_text.split())
             return max(1, total)
 
-        def _fallback_summarize_manual_compression(original_messages, compressed_messages, before_tokens, after_tokens, focus_topic=None):
+        def _fallback_summarize_manual_compression(
+            original_messages,
+            compressed_messages,
+            before_tokens,
+            after_tokens,
+            focus_topic=None,
+        ):
             """Lightweight fallback summary to keep /session/compress usable in tests/runtime."""
-            after_tokens = after_tokens if after_tokens is not None else _fallback_estimate_messages_tokens_rough(compressed_messages)
+            after_tokens = (
+                after_tokens
+                if after_tokens is not None
+                else _fallback_estimate_messages_tokens_rough(compressed_messages)
+            )
             headline = f"Compressed: {len(original_messages)} \u2192 {len(compressed_messages)} messages"
             summary = {
                 "headline": headline,
@@ -2639,7 +2750,9 @@ def _handle_session_compress(handler, body):
             focus_topic=None,
         ):
             try:
-                from agent.manual_compression_feedback import summarize_manual_compression
+                from agent.manual_compression_feedback import (
+                    summarize_manual_compression,
+                )
 
                 return summarize_manual_compression(
                     original_messages,
@@ -2660,11 +2773,15 @@ def _handle_session_compress(handler, body):
         import hermes_cli.runtime_provider as _runtime_provider
         import run_agent as _run_agent
 
-        resolved_model, resolved_provider, resolved_base_url = _cfg.resolve_model_provider(s.model)
+        resolved_model, resolved_provider, resolved_base_url = (
+            _cfg.resolve_model_provider(s.model)
+        )
 
         resolved_api_key = None
         try:
-            _rt = _runtime_provider.resolve_runtime_provider(requested=resolved_provider)
+            _rt = _runtime_provider.resolve_runtime_provider(
+                requested=resolved_provider
+            )
             resolved_api_key = _rt.get("api_key")
             if not resolved_provider:
                 resolved_provider = _rt.get("provider")
@@ -2711,20 +2828,29 @@ def _handle_session_compress(handler, body):
             s.pending_attachments = []
             s.pending_started_at = None
             visible_after = _visible_messages_for_anchor(compressed)
-            s.compression_anchor_visible_idx = max(0, len(visible_after) - 1) if visible_after else None
-            s.compression_anchor_message_key = _anchor_message_key(visible_after[-1]) if visible_after else None
+            s.compression_anchor_visible_idx = (
+                max(0, len(visible_after) - 1) if visible_after else None
+            )
+            s.compression_anchor_message_key = (
+                _anchor_message_key(visible_after[-1]) if visible_after else None
+            )
             s.save()
 
         session_payload = redact_session_data(
-            s.compact() | {
+            s.compact()
+            | {
                 "messages": s.messages,
                 "tool_calls": s.tool_calls,
                 "active_stream_id": s.active_stream_id,
                 "pending_user_message": s.pending_user_message,
                 "pending_attachments": s.pending_attachments,
                 "pending_started_at": s.pending_started_at,
-                "compression_anchor_visible_idx": getattr(s, "compression_anchor_visible_idx", None),
-                "compression_anchor_message_key": getattr(s, "compression_anchor_message_key", None),
+                "compression_anchor_visible_idx": getattr(
+                    s, "compression_anchor_visible_idx", None
+                ),
+                "compression_anchor_message_key": getattr(
+                    s, "compression_anchor_message_key", None
+                ),
             }
         )
         return j(
