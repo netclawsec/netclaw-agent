@@ -205,6 +205,36 @@ function syncModelChip(){
   chip.classList.toggle('active',!!(dd&&dd.classList.contains('open')));
 }
 
+function syncYoloChip(){
+  const chip=$('composerYoloChip');
+  if(!chip) return;
+  const on=!!(S.session && S.session.yolo);
+  chip.setAttribute('aria-pressed',on?'true':'false');
+  chip.title=on
+    ? 'YOLO on — every command auto-approved for this session. Click to disable.'
+    : 'YOLO off — commands still require approval. Click to enable.';
+}
+
+async function toggleYolo(){
+  if(!S.session){ if(typeof showToast==='function') showToast('Start a session first',2500); return; }
+  const next=!(S.session.yolo);
+  try{
+    const r=await api('/api/session/update',{method:'POST',body:JSON.stringify({
+      session_id:S.session.session_id,
+      workspace:S.session.workspace,
+      yolo:next,
+    })});
+    if(r&&r.session) S.session=Object.assign({},S.session,r.session);
+    else S.session.yolo=next;
+    syncYoloChip();
+    if(typeof showToast==='function'){
+      showToast(next?'YOLO mode ENABLED — commands will auto-approve':'YOLO mode disabled',3500);
+    }
+  }catch(err){
+    if(typeof showToast==='function') showToast('Failed to toggle YOLO: '+err,4000);
+  }
+}
+
 function _positionModelDropdown(){
   const dd=$('composerModelDropdown');
   const chip=$('composerModelChip');
@@ -1024,6 +1054,7 @@ async function checkInflightOnBoot(sid) {
 }
 
 function syncTopbar(){
+  if(typeof syncYoloChip==='function') syncYoloChip();
   if(!S.session){
     document.title=window._botName||'NetClaw Agent';
     if(typeof syncWorkspaceDisplays==='function') syncWorkspaceDisplays();

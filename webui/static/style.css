@@ -536,6 +536,12 @@
   .composer-model-label{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .composer-model-icon,.composer-model-chevron{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;line-height:1;}
   .composer-model-select{position:absolute!important;left:-9999px!important;width:1px!important;height:1px!important;opacity:0!important;pointer-events:none!important;}
+  .composer-yolo-chip{display:inline-flex;align-items:center;gap:6px;padding:8px 10px 8px 10px;border-radius:999px;border:1px solid transparent;background-color:transparent;color:var(--muted);font-weight:600;font-size:12px;letter-spacing:0.08em;cursor:pointer;transition:color .15s,background-color .15s,border-color .15s;}
+  .composer-yolo-chip:hover{color:var(--text);background-color:var(--hover-bg);}
+  .composer-yolo-chip[aria-pressed="true"]{color:#fff;background:linear-gradient(135deg,#f56565,#f59e0b);border-color:#f59e0b;box-shadow:0 0 0 1px rgba(245,158,11,.25) inset;}
+  .composer-yolo-chip[aria-pressed="true"]:hover{filter:brightness(1.06);}
+  .composer-yolo-icon{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;line-height:1;}
+  .composer-yolo-label{white-space:nowrap;}
   .composer-right{display:flex;gap:8px;align-items:center;flex-shrink:0;}
   .composer-status{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:170px;}
   /* Context usage indicator */
