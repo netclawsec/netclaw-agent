@@ -59,7 +59,7 @@ source ~/.bashrc    # 或 source ~/.zshrc
 netclaw              # 开始对话
 ```
 
-> 主命令为 `netclaw`；同时保留 `hermes` 作为兼容别名（两者指向同一入口），以便旧版文档、上游生态脚本继续可用。
+> 命令行统一使用 `netclaw`。
 
 ---
 
