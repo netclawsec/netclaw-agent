@@ -11,7 +11,7 @@ The product is sold/distributed as **NetClaw Agent**. The two upstream names ("H
 
 - All Python package names (`hermes_agent`, `hermes_cli`, …) — avoids breaking imports and upstream merges.
 - All environment variables (`HERMES_*`, `HERMES_WEBUI_*`) — these are runtime contracts.
-- CLI binary name (`hermes`) — keeps documentation and tutorials referenceable.
+- CLI binary name — `netclaw` is the primary branded command; `hermes` is retained as a back-compat alias (both point to `hermes_cli.main:main` via `[project.scripts]`).
 - `CHANGELOG.md` / `LICENSE` / `CONTRIBUTING.md` — preserve attribution.
 
 User-visible strings (`webui/static/i18n.js`, `webui/static/index.html`, onboarding copy, README surfaces) are rebranded to **NetClaw Agent**.
@@ -83,7 +83,7 @@ Archived to `/tmp/` on the machine that performed the original merge (2026-04-18
 | HTML `<title>`, page headers, onboarding copy | **NetClaw Agent** |
 | Button labels, modal titles, settings descriptions | **NetClaw Agent** |
 | Error messages shown to end users | **NetClaw Agent** |
-| CLI command references (`hermes auth`, `hermes model`) | keep lowercase `hermes` (actual binary) |
+| CLI command references in user-facing docs | use `netclaw …` (primary). `hermes …` still works as alias. |
 | Env vars (`HERMES_*`) | keep upstream names |
 | Python imports | keep upstream names |
 | CHANGELOG historical entries | keep as-is |
