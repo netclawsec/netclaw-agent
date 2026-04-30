@@ -51,6 +51,17 @@ for filename in ("pyproject.toml", "README.md", "LICENSE", "run_agent.py"):
     if src.is_file():
         datas.append((str(src), "."))
 
+# Per-tenant bundle.json — set NETCLAW_BUNDLE_JSON to a validated bundle.json
+# path before invoking pyinstaller. Lands at top-level so
+# `Path(_MEIPASS) / 'bundle.json'` resolves at runtime (see employee_auth.py).
+import os as _os
+_bundle_json = _os.environ.get("NETCLAW_BUNDLE_JSON")
+if _bundle_json:
+    _bp = Path(_bundle_json)
+    if not _bp.is_file():
+        raise SystemExit(f"NETCLAW_BUNDLE_JSON points at missing file: {_bp}")
+    datas.append((str(_bp), "."))
+
 
 # ---------------------------------------------------------------------------
 # Hidden imports — modules PyInstaller's static analyser misses.

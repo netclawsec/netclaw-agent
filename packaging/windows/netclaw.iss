@@ -1,16 +1,42 @@
 ; Inno Setup script for NetClaw Agent on Windows
-; Generates: dist/NetClaw-Agent-Setup-<version>.exe
+; Generates: dist/NetClaw-Agent-Setup-<version>.exe (generic) or
+;            dist/NetClaw-Agent-Setup-<slug>-<version>.exe (per-tenant)
 ;
-; Build: ISCC.exe netclaw.iss   (run from packaging/windows/)
+; Generic build:
+;   ISCC.exe netclaw.iss
+;
+; Per-tenant build (build.ps1 passes these via /D flags):
+;   ISCC.exe ^
+;     /DTenantSlug=acme ^
+;     /DTenantDisplayName="NetClaw Agent — Acme 软件" ^
+;     /DAppId={{<deterministic-guid>} ^
+;     /DOutputBaseFilename=NetClaw-Agent-Setup-acme-0.10.0 ^
+;     /DInstallSubdir=Agent-acme ^
+;     netclaw.iss
 ;
 ; Wraps the PyInstaller --onedir output at ../../dist/netclaw/.
 
-#define MyAppName        "NetClaw Agent"
+#ifndef TenantDisplayName
+  #define TenantDisplayName "NetClaw Agent"
+#endif
+#ifndef AppId
+  ; Generic-build AppId — preserve verbatim for backwards compat with the
+  ; v0.10.0 generic installer (changing this orphans existing installs).
+  #define AppId "{{6F0B6F35-9D2E-4E0F-8A37-NETCLAWAGENT01}"
+#endif
+#ifndef OutputBaseFilename
+  #define OutputBaseFilename "NetClaw-Agent-Setup-0.10.0"
+#endif
+#ifndef InstallSubdir
+  #define InstallSubdir "Agent"
+#endif
+
+#define MyAppName        TenantDisplayName
 #define MyAppVersion     "0.10.0"
 #define MyAppPublisher   "NetClaw"
 #define MyAppURL         "https://netclawsec.com"
 #define MyAppExeName     "netclaw.exe"
-#define MyAppId          "{{6F0B6F35-9D2E-4E0F-8A37-NETCLAWAGENT01}"
+#define MyAppId          AppId
 
 [Setup]
 AppId={#MyAppId}
@@ -19,13 +45,13 @@ AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
-DefaultDirName={autopf}\NetClaw\Agent
+DefaultDirName={autopf}\NetClaw\{#InstallSubdir}
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 DisableDirPage=no
 LicenseFile=
 OutputDir=..\..\dist
-OutputBaseFilename=NetClaw-Agent-Setup-{#MyAppVersion}
+OutputBaseFilename={#OutputBaseFilename}
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
