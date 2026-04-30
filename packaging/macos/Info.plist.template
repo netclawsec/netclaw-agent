@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTD/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Bundle identity ------------------------------------------------->
+    <key>CFBundleName</key>
+    <string>NetClaw Agent</string>
+    <key>CFBundleDisplayName</key>
+    <string>NetClaw Agent</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.netclaw.agent</string>
+    <key>CFBundleShortVersionString</key>
+    <string>__VERSION__</string>
+    <key>CFBundleVersion</key>
+    <string>__VERSION__</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleSignature</key>
+    <string>????</string>
+    <key>CFBundleExecutable</key>
+    <string>netclaw-agent</string>
+    <key>CFBundleIconFile</key>
+    <string>icon.icns</string>
+
+    <!-- System requirements -------------------------------------------->
+    <key>LSMinimumSystemVersion</key>
+    <string>12.0</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>NSSupportsAutomaticGraphicsSwitching</key>
+    <true/>
+
+    <!-- Dark mode support + retina --------------------------------------->
+    <key>NSRequiresAquaSystemAppearance</key>
+    <false/>
+
+    <!-- Architecture --------------------------------------------------->
+    <key>LSArchitecturePriority</key>
+    <array>
+        <string>arm64</string>
+        <string>x86_64</string>
+    </array>
+
+    <!-- Single-instance: reopen the existing window instead of spawning
+         a second uvicorn on port 9119 -->
+    <key>LSUIElement</key>
+    <false/>
+
+    <!-- Copyright -->
+    <key>NSHumanReadableCopyright</key>
+    <string>Copyright © 2026 NetClaw. Distributed under MIT License.</string>
+
+    <!-- App Transport Security: allow localhost (127.0.0.1) for the
+         embedded webui. Public HTTPS traffic unaffected. -->
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <key>NSAllowsLocalNetworking</key>
+        <true/>
+    </dict>
+
+    <!-- Usage strings — required if user-facing permission prompts are
+         triggered. Omitted here because no camera/mic/location is used. -->
+</dict>
+</plist>

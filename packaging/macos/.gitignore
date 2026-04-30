@@ -1,0 +1,9 @@
+# local secrets — never commit
+.env.signing
+
+# generated artifacts
+icon/NetClawAgent.icns
+icon/NetClawAgent.iconset/
+dmg_background.png
+
+# build output (also at project root dist/ and build/)
