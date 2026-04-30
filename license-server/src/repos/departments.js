@@ -27,9 +27,11 @@ const stmts = {
   setAbbrev:  db.prepare('UPDATE departments SET abbrev = ? WHERE id = ?'),
   setStatus:  db.prepare('UPDATE departments SET status = ? WHERE id = ?'),
   delete:     db.prepare('DELETE FROM departments WHERE id = ?'),
-  countActiveEmployees: db.prepare(
-    `SELECT COUNT(*) AS n FROM tenant_employees
-     WHERE department_id = ? AND status IN ('active', 'suspended')`
+  countAnyEmployees: db.prepare(
+    `SELECT COUNT(*) AS n FROM tenant_employees WHERE department_id = ?`
+  ),
+  countAnyInviteCodes: db.prepare(
+    `SELECT COUNT(*) AS n FROM invite_codes WHERE department_id = ?`
   )
 };
 
@@ -118,11 +120,19 @@ function updateDepartment(id, { name, abbrev, status }) {
 function deleteDepartment(id) {
   const existing = getDepartment(id);
   if (!existing) return null;
-  const active = stmts.countActiveEmployees.get(id).n;
-  if (active > 0) {
+  const employeeRefs = stmts.countAnyEmployees.get(id).n;
+  if (employeeRefs > 0) {
     throw new DepartmentError(
       'department_in_use',
-      `cannot delete department with ${active} active employees; reassign or remove them first`
+      `cannot delete department with ${employeeRefs} referencing employee record(s); ` +
+      'hard-delete employees (incl. soft-deleted) or migrate them first'
+    );
+  }
+  const inviteRefs = stmts.countAnyInviteCodes.get(id).n;
+  if (inviteRefs > 0) {
+    throw new DepartmentError(
+      'department_in_use',
+      `cannot delete department with ${inviteRefs} invite code(s); revoke them first`
     );
   }
   stmts.delete.run(id);

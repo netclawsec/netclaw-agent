@@ -210,6 +210,24 @@ test('changePassword: requires correct old password', async () => {
   await employees.authenticate(tenant_id, 'dev-zhangsan', 'NEW_pass5678', 'fp-machine-aaaa-bbbb');
 });
 
+test('updateEmployee: rejects move into archived department', async () => {
+  const { employees, departments, tenant_id, dept } = setup();
+  const e = await employees.createEmployee({
+    tenant_id,
+    department_id: dept.id,
+    raw_username: 'zhangsan',
+    password: 'abcd1234',
+    machine_fingerprint: 'fp-machine-aaaa-bbbb'
+  });
+  const archived = departments.createDepartment({ tenant_id, name: '已撤销部', abbrev: 'old' });
+  departments.updateDepartment(archived.id, { status: 'archived' });
+  // Bug from review: createEmployee blocked archived depts but updateEmployee did not.
+  assert.throws(
+    () => employees.updateEmployee(e.id, { department_id: archived.id }),
+    (err) => err.code === 'department_archived'
+  );
+});
+
 test('unbindMachine: clears fingerprint so employee can bind a new machine', async () => {
   const { employees, tenant_id, dept } = setup();
   const e = await employees.createEmployee({

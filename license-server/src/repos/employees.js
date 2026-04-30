@@ -171,6 +171,9 @@ function updateEmployee(id, { display_name, department_id }) {
     if (!dept || dept.tenant_id !== existing.tenant_id) {
       throw new EmployeeError('department_not_found', 'department does not belong to this tenant');
     }
+    if (dept.status !== 'active') {
+      throw new EmployeeError('department_archived', 'cannot move employee into archived department');
+    }
     stmts.setDepartment.run(department_id, id);
   }
   return getEmployee(id);

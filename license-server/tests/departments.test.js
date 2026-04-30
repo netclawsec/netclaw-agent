@@ -8,8 +8,9 @@ function setup() {
   const { db } = require('../src/db');
   const tenants = require('../src/repos/tenants');
   const departments = require('../src/repos/departments');
+  const employees = require('../src/repos/employees');
   const t = tenants.createTenant({ name: 'Acme', slug: 'acme', seat_quota: 50 });
-  return { db, tenants, departments, tenant_id: t.id };
+  return { db, tenants, departments, employees, tenant_id: t.id };
 }
 
 test('createDepartment: rejects bad name and bad abbrev', () => {
@@ -67,6 +68,29 @@ test('updateDepartment: changes name + abbrev + status, blocks duplicates', () =
     () => departments.updateDepartment(d2.id, { abbrev: 'dev' }),
     (err) => err.code === 'abbrev_exists'
   );
+});
+
+test('deleteDepartment: refuses even when only soft-deleted employees remain', async () => {
+  const { departments, employees, tenant_id } = setup();
+  const dept = departments.createDepartment({ tenant_id, name: '研发部', abbrev: 'dev' });
+  const e = await employees.createEmployee({
+    tenant_id,
+    department_id: dept.id,
+    raw_username: 'zhangsan',
+    password: 'abcd1234',
+    machine_fingerprint: 'fp-machine-aaaa-bbbb'
+  });
+  employees.setStatus(e.id, 'deleted');
+  // Bug from review: previous code only counted active+suspended, letting the
+  // delete proceed and the FK throw a raw SQLite error.
+  assert.throws(
+    () => departments.deleteDepartment(dept.id),
+    (err) => err.code === 'department_in_use'
+  );
+  // After hard delete of the employee, dept can be removed cleanly.
+  employees.deleteEmployee(e.id);
+  const removed = departments.deleteDepartment(dept.id);
+  assert.equal(removed.id, dept.id);
 });
 
 test('deleteDepartment: refuses if active employees exist, allows when none', async () => {
