@@ -114,11 +114,10 @@ cookieAuthRouter.post  ('/tenant/installer/builds',                       requir
 cookieAuthRouter.get   ('/tenant/installer/builds',                       requireTenantAdmin, installerRoutes.listBuilds);
 cookieAuthRouter.get   ('/tenant/installer/builds/:build_id',             requireTenantAdmin, installerRoutes.getBuild);
 
-app.use('/api', cookieAuthRouter);
-
-// Internal build-worker routes (Bearer token from BUILD_WORKER_TOKEN env;
-// not a cookie session). Mounted outside cookieAuthRouter so the CSRF
-// origin guard + cookie middleware don't apply.
+// Internal build-worker routes — MUST be registered BEFORE the
+// `app.use('/api', cookieAuthRouter)` mount below, otherwise mutating
+// methods (POST/PATCH) get rejected by csrfOriginGuard which runs on
+// every /api/* request before path-matching falls through to here.
 const internalRoutes = require('./routes/internal');
 const { requireBuildWorker } = require('./auth/worker');
 const workerLimiter = rateLimit({ windowMs: 60_000, limit: 60, standardHeaders: true, legacyHeaders: false });
@@ -126,6 +125,8 @@ app.get ('/api/internal/build-queue',                  workerLimiter, requireBui
 app.post('/api/internal/build-queue/:build_id/upload', workerLimiter, requireBuildWorker, internalRoutes.uploadResult);
 app.post('/api/internal/build-queue/:build_id/fail',   workerLimiter, requireBuildWorker, internalRoutes.failBuild);
 app.post('/api/internal/build-queue/reap',             workerLimiter, requireBuildWorker, internalRoutes.reapStale);
+
+app.use('/api', cookieAuthRouter);
 
 const path = require('node:path');
 app.use('/admin', express.static(path.join(__dirname, '..', 'public', 'admin'), {
