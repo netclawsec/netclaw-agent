@@ -10,7 +10,7 @@
     departments: () => window.NC.departments,
     employees:   () => window.NC.employees,
     invites:     () => window.NC.invites,
-    installers:  { mount: async () => {} }
+    installers:  () => window.NC.installers
   };
 
   function tabModule(name) {
@@ -136,6 +136,7 @@
   $('open-create-license').addEventListener('click',  () => window.NC.licenses?.openCreate?.());
   $('open-create-dept').addEventListener('click',     () => window.NC.departments?.openCreate?.());
   $('open-create-emp').addEventListener('click',      () => window.NC.employees?.openCreate?.());
+  $('open-build-installer').addEventListener('click', () => window.NC.installers?.openCreate?.());
 
   // Global delegated row-action handler — dispatches by data-act prefix to the
   // right tab module. Keeps each tab's per-row JS self-contained.
@@ -147,6 +148,8 @@
     if (act.endsWith('-dept'))                          return window.NC.departments?.handleAction?.(act, btn);
     if (act.endsWith('-emp'))                           return window.NC.employees?.handleAction?.(act, btn);
     if (act.endsWith('-inv'))                           return window.NC.invites?.handleAction?.(act, btn);
+    if (act.endsWith('-installer-url') ||
+        act.endsWith('-installer-error'))               return window.NC.installers?.handleAction?.(act, btn);
   });
 
   // Change password

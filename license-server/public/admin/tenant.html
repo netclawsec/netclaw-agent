@@ -162,19 +162,16 @@
 
     <section id="tab-installers" class="tab-panel space-y-4">
       <h2 class="text-xl font-semibold">专属安装包</h2>
-      <div class="bg-amber-50 border border-amber-200 rounded p-4 text-sm text-amber-800">
-        <strong>开发中</strong>：构建流水线（半自动 worker → OSS）尚未上线。表面功能（创建任务 + 状态轮询）已就位，但点击"构建"会得到 <code class="bg-amber-100 px-1 rounded">build_pipeline_unavailable</code>。等阶段 9-11 上线后开放。
-      </div>
       <div class="flex items-center justify-between">
         <p class="text-xs text-slate-500">为本公司打专属安装包：自动写入 license server 地址、tenant 信息，员工拿到后直接装即可，无需手填激活码。</p>
-        <button id="open-build-installer" class="bg-slate-300 text-slate-600 text-sm px-4 py-2 rounded-md cursor-not-allowed" disabled title="等待 build worker 上线">+ 构建专属安装包</button>
+        <button id="open-build-installer" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm px-4 py-2 rounded-md">+ 构建专属安装包</button>
       </div>
       <div class="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
         <table class="w-full text-sm">
           <thead class="bg-slate-50 text-slate-600 text-left">
             <tr>
               <th class="px-4 py-3 font-medium">build_id</th>
-              <th class="px-4 py-3 font-medium">平台</th>
+              <th class="px-4 py-3 font-medium">租户 / 部门数</th>
               <th class="px-4 py-3 font-medium">状态</th>
               <th class="px-4 py-3 font-medium">构建时间</th>
               <th class="px-4 py-3 font-medium">下载</th>
@@ -197,6 +194,7 @@
   <script src="js/tenant-departments.js"></script>
   <script src="js/tenant-employees.js"></script>
   <script src="js/tenant-invites.js"></script>
+  <script src="js/tenant-installers.js"></script>
   <script src="js/tenant.js"></script>
 </body>
 </html>
