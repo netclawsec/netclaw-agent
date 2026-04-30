@@ -1,0 +1,26 @@
+{
+  "name": "netclaw-license-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "NetClaw Agent license server — NCLW-* keys, JWT activations, multi-seat",
+  "main": "src/app.js",
+  "scripts": {
+    "start": "node src/app.js",
+    "dev": "NODE_ENV=development node --watch src/app.js",
+    "test": "node --test tests/*.test.js",
+    "bootstrap-super": "node scripts/bootstrap-super-admin.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.5.0",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.4.1",
+    "jsonwebtoken": "^9.0.2",
+    "pino": "^9.5.0",
+    "pino-pretty": "^11.3.0",
+    "zod": "^3.23.8"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

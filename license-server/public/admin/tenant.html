@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>公司管理员控制台 · NetClaw</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 min-h-screen font-sans text-slate-800">
+  <header class="bg-white border-b border-slate-200">
+    <div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <span class="text-2xl">🐾</span>
+        <h1 class="text-lg font-semibold">NetClaw 公司管理后台</h1>
+        <span id="tenant-name-badge" class="ml-3 text-sm text-slate-500"></span>
+      </div>
+      <div class="flex items-center gap-4 text-sm">
+        <span id="me-label" class="text-slate-600"></span>
+        <button id="change-pw-btn" class="text-slate-600 hover:text-slate-900">改密</button>
+        <button id="logout-btn" class="text-indigo-600 hover:text-indigo-700">退出</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-6 py-8 space-y-8">
+    <section id="dashboard" class="grid grid-cols-1 md:grid-cols-4 gap-4"></section>
+
+    <section>
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-xl font-semibold">License 列表（员工授权码）</h2>
+        <button id="open-create-license" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm px-4 py-2 rounded-md">+ 为员工生成 License</button>
+      </div>
+      <div class="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
+        <table class="w-full text-sm">
+          <thead class="bg-slate-50 text-slate-600 text-left">
+            <tr>
+              <th class="px-4 py-3 font-medium">License Key</th>
+              <th class="px-4 py-3 font-medium">备注/员工</th>
+              <th class="px-4 py-3 font-medium">座位</th>
+              <th class="px-4 py-3 font-medium">状态</th>
+              <th class="px-4 py-3 font-medium">到期</th>
+              <th class="px-4 py-3 font-medium">操作</th>
+            </tr>
+          </thead>
+          <tbody id="licenses-tbody" class="divide-y divide-slate-100"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <div id="modal" class="hidden fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
+    <div id="modal-card" class="bg-white rounded-lg shadow-xl w-full max-w-md p-6"></div>
+  </div>
+
+  <script src="js/tenant.js"></script>
+</body>
+</html>
