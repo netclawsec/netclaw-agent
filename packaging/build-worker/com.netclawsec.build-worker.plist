@@ -36,10 +36,16 @@
     <string>Windows 11</string>
     <key>PARALLELS_SHARED_DIR_HOST</key>
     <string>/Users/crawford/workspace/netclaw-agent</string>
+    <!-- Map the netclaw-agent repo root into Windows. The Parallels VM is
+         pre-configured with a shared folder named "netclaw-src" pointing
+         at /Users/crawford/workspace/netclaw-agent on the host, so the
+         guest sees it as both X:\ and \\Mac\netclaw-src. We use the UNC
+         form since drive letters aren't always available to background
+         (non-interactive) prlctl exec sessions. -->
     <key>PARALLELS_SHARED_DIR_GUEST</key>
-    <string>\\Mac\Home\workspace\netclaw-agent</string>
+    <string>\\Mac\netclaw-src</string>
     <key>BUILD_REPO_GUEST</key>
-    <string>\\Mac\Home\workspace\netclaw-agent</string>
+    <string>\\Mac\netclaw-src</string>
     <key>AGENT_VERSION</key>
     <string>0.10.0</string>
     <key>OSS_BUCKET</key>

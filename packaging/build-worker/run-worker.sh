@@ -15,8 +15,15 @@ if [ ! -f "$ENV_FILE" ]; then
     exit 2
 fi
 
+# `set -a` auto-exports every variable assigned while it's on, so the
+# `KEY=value` lines in the env file land in the environment of the
+# Python subprocess we exec below. Without it, the variables are only
+# visible to this shell — Python's os.environ would never see them and
+# the worker would loop "missing env BUILD_WORKER_TOKEN" forever.
+set -a
 # shellcheck disable=SC1090
 . "$ENV_FILE"
+set +a
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "$0")" && pwd)"
 exec /usr/bin/env python3 "$SCRIPT_DIR/build_worker.py"

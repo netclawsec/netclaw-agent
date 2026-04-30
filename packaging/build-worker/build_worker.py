@@ -176,31 +176,61 @@ def run_windows_build(
 ) -> Path:
     """Drive the Windows build. Returns the host-side path of the produced .exe."""
     bundle_rel = bundle_host_path.relative_to(cfg.shared_host)
-    bundle_guest = _guest_path(cfg, str(bundle_rel))
-    build_script = f"{cfg.repo_guest}\\packaging\\windows\\build.ps1"
+    # Build a Windows-style relative path from the repo root. PowerShell
+    # was treating UNC bundle paths as a "provider-qualified" filesystem
+    # path (Microsoft.PowerShell.Core\FileSystem::\\Mac\...) which then
+    # fails Test-Path. Using a drive-letter-relative path (resolved after
+    # cd \) avoids the provider rewrite entirely.
+    bundle_guest_rel = "." + "\\" + str(bundle_rel).replace("/", chr(92))
 
     # The build.ps1 script writes to dist/<basename>.exe under the repo. We
     # mirror its naming scheme so we know where to find the artifact.
     basename = f"NetClaw-Agent-Setup-{tenant_slug}-{cfg.agent_version}"
     output_relpath_guest = f"{cfg.repo_guest}\\dist\\{basename}.exe"
 
-    # Use cmd /c so Windows surfaces non-zero exit codes back to prlctl.
-    powershell_cmd = (
-        f"powershell -ExecutionPolicy Bypass -File {build_script} "
+    # Drop a per-build wrapper batch into the repo dist/ dir. Doing it
+    # this way side-steps two PowerShell-on-Windows-via-prlctl footguns:
+    #   * `powershell -File \\UNC\path\script.ps1` confuses the parser
+    #     and dies with "argument doesn't exist" before running anything.
+    #   * Calling powershell with -Command inline + multiple quote layers
+    #     gets re-quoted by cmd / prlctl and breaks subtly.
+    # The .bat maps the X: drive (pre-configured Parallels share pointing
+    # at the repo root), cd's to its root, and invokes build.ps1 with
+    # both -File and -BundleJson as drive-letter-relative paths.
+    wrapper_dir = cfg.shared_host / "dist"
+    wrapper_dir.mkdir(parents=True, exist_ok=True)
+    wrapper_path = wrapper_dir / f"build-worker-{tenant_slug}.bat"
+    wrapper_path.write_text(
+        "@echo off\r\n"
+        "chcp 65001 > nul\r\n"
+        "X:\r\n"
+        "cd \\\r\n"
+        "powershell -NoProfile -ExecutionPolicy Bypass "
+        f"-File .\\packaging\\windows\\build.ps1 "
         f"-TenantSlug {tenant_slug} "
-        f'-BundleJson "{bundle_guest}" '
-        f"-Version {cfg.agent_version}"
+        f'-BundleJson "{bundle_guest_rel}" '
+        f"-Version {cfg.agent_version}\r\n"
+        "exit /b %errorlevel%\r\n",
+        encoding="utf-8",
     )
+    wrapper_guest = f"{cfg.shared_guest}\\dist\\build-worker-{tenant_slug}.bat"
 
     cmd = [
         "/usr/local/bin/prlctl",
         "exec",
         cfg.vm_name,
         "--current-user",
-        f"cmd /c {powershell_cmd}",
+        "cmd.exe",
+        "/c",
+        wrapper_guest,
     ]
     print(f"[worker] running: {' '.join(cmd)}")
     completed = subprocess.run(cmd, capture_output=True, text=True, timeout=30 * 60)
+    # Best-effort cleanup of the wrapper; not fatal if it sticks around.
+    try:
+        wrapper_path.unlink()
+    except OSError:
+        pass
     if completed.returncode != 0:
         raise WorkerError(
             f"prlctl build returned {completed.returncode}\n"
