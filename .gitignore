@@ -62,3 +62,13 @@ mini-swe-agent/
 .direnv/
 result
 website/static/api/skills-index.json
+
+# PyInstaller / PyArmor build artifacts
+build/
+dist/
+pyarmor_runtime_*/
+pyarmor.bug.log
+*.py.clear
+
+# Session handoff scratch
+handoff.md
