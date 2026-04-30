@@ -435,6 +435,11 @@ def handle_get(handler, parsed) -> bool:
             logged_in = bool(cv and verify_session(cv))
         return j(handler, {"auth_enabled": is_auth_enabled(), "logged_in": logged_in})
 
+    if parsed.path == "/api/license":
+        from api.license import handle_status as _license_status
+
+        return _license_status(handler)
+
     if parsed.path == "/favicon.ico":
         static_root = Path(__file__).parent.parent / "static"
         ico_path = (static_root / "favicon.ico").resolve()
@@ -774,6 +779,21 @@ def handle_post(handler, parsed) -> bool:
         return handle_transcribe(handler)
 
     body = read_body(handler)
+
+    if parsed.path == "/api/license/activate":
+        from api.license import handle_activate as _license_activate
+
+        return _license_activate(handler, body)
+
+    if parsed.path == "/api/license/deactivate":
+        from api.license import handle_deactivate as _license_deactivate
+
+        return _license_deactivate(handler, body)
+
+    if parsed.path == "/api/license/verify":
+        from api.license import handle_verify as _license_verify
+
+        return _license_verify(handler, body)
 
     if parsed.path == "/api/session/new":
         try:

@@ -1076,10 +1076,10 @@ let _settingsSkinOnOpen = null; // track skin at open time for discard revert
 let _settingsSection = 'conversation';
 
 function switchSettingsSection(name){
-  const section=(name==='appearance'||name==='preferences'||name==='system')?name:'conversation';
+  const section=(name==='appearance'||name==='preferences'||name==='system'||name==='license')?name:'conversation';
   _settingsSection=section;
-  const map={conversation:'Conversation',appearance:'Appearance',preferences:'Preferences',system:'System'};
-  ['conversation','appearance','preferences','system'].forEach(key=>{
+  const map={conversation:'Conversation',appearance:'Appearance',preferences:'Preferences',license:'License',system:'System'};
+  Object.keys(map).forEach(key=>{
     const tab=$('settingsTab'+map[key]);
     const pane=$('settingsPane'+map[key]);
     const active=key===section;
@@ -1089,6 +1089,9 @@ function switchSettingsSection(name){
     }
     if(pane) pane.classList.toggle('active',active);
   });
+  if(section==='license' && typeof licenseRefresh==='function'){
+    licenseRefresh();
+  }
 }
 
 function _syncHermesPanelSessionActions(){
