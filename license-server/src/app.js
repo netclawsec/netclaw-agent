@@ -108,7 +108,24 @@ cookieAuthRouter.delete('/tenant/employees/:employee_id',                 requir
 cookieAuthRouter.get   ('/tenant/invite-codes',                           requireTenantAdmin, tenantRoutes.listInviteCodes);
 cookieAuthRouter.post  ('/tenant/invite-codes/:code/revoke',              requireTenantAdmin, tenantRoutes.revokeInviteCode);
 
+// Per-company installer build queue (admin-side)
+const installerRoutes = require('./routes/installer');
+cookieAuthRouter.post  ('/tenant/installer/builds',                       requireTenantAdmin, asyncHandler(installerRoutes.createBuild));
+cookieAuthRouter.get   ('/tenant/installer/builds',                       requireTenantAdmin, installerRoutes.listBuilds);
+cookieAuthRouter.get   ('/tenant/installer/builds/:build_id',             requireTenantAdmin, installerRoutes.getBuild);
+
 app.use('/api', cookieAuthRouter);
+
+// Internal build-worker routes (Bearer token from BUILD_WORKER_TOKEN env;
+// not a cookie session). Mounted outside cookieAuthRouter so the CSRF
+// origin guard + cookie middleware don't apply.
+const internalRoutes = require('./routes/internal');
+const { requireBuildWorker } = require('./auth/worker');
+const workerLimiter = rateLimit({ windowMs: 60_000, limit: 60, standardHeaders: true, legacyHeaders: false });
+app.get ('/api/internal/build-queue',                  workerLimiter, requireBuildWorker, internalRoutes.claimNext);
+app.post('/api/internal/build-queue/:build_id/upload', workerLimiter, requireBuildWorker, internalRoutes.uploadResult);
+app.post('/api/internal/build-queue/:build_id/fail',   workerLimiter, requireBuildWorker, internalRoutes.failBuild);
+app.post('/api/internal/build-queue/reap',             workerLimiter, requireBuildWorker, internalRoutes.reapStale);
 
 const path = require('node:path');
 app.use('/admin', express.static(path.join(__dirname, '..', 'public', 'admin'), {

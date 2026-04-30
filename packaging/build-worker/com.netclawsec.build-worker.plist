@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.netclawsec.build-worker</string>
+
+  <!--
+    Single-shot Python script. launchd re-invokes every StartInterval
+    seconds (5 min); each invocation processes at most one queued build.
+    Idle invocations exit 0 immediately.
+  -->
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/crawford/workspace/netclaw-agent/packaging/build-worker/run-worker.sh</string>
+  </array>
+
+  <key>StartInterval</key>
+  <integer>300</integer>
+
+  <!--
+    Source ~/.zshrc-like env. We use EnvironmentVariables here; for
+    sensitive values keep them in ~/.netclaw/build-worker.env and load
+    via a wrapper script (see README).
+  -->
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/usr/local/bin:/usr/bin:/bin</string>
+    <key>LICENSE_SERVER_URL</key>
+    <string>https://license.netclawsec.com.cn</string>
+    <key>PARALLELS_VM_NAME</key>
+    <string>Windows 11</string>
+    <key>PARALLELS_SHARED_DIR_HOST</key>
+    <string>/Users/crawford/workspace/netclaw-agent</string>
+    <key>PARALLELS_SHARED_DIR_GUEST</key>
+    <string>\\Mac\Home\workspace\netclaw-agent</string>
+    <key>BUILD_REPO_GUEST</key>
+    <string>\\Mac\Home\workspace\netclaw-agent</string>
+    <key>AGENT_VERSION</key>
+    <string>0.10.0</string>
+    <key>OSS_BUCKET</key>
+    <string>netclaw-installers</string>
+    <key>OSS_ENDPOINT</key>
+    <string>oss-cn-hangzhou.aliyuncs.com</string>
+    <key>OSS_OBJECT_PREFIX</key>
+    <string>installers/</string>
+  </dict>
+
+  <key>StandardOutPath</key>
+  <string>/Users/crawford/Library/Logs/netclaw-build-worker.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/crawford/Library/Logs/netclaw-build-worker.log</string>
+  <key>RunAtLoad</key>
+  <false/>
+</dict>
+</plist>
