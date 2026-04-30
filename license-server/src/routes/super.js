@@ -185,6 +185,59 @@ function listAdmins(req, res) {
   return res.json({ success: true, admins: adminsRepo.listAdmins() });
 }
 
+// ----- Super-side license CRUD (moved from tenant.js so customers can't
+// self-extend their own license by 36 months) ---------------------------------
+
+const createLicenseSchema = z.object({
+  customer_name: z.string().min(1).max(100),
+  months: z.number().int().min(1).max(36),
+  seats: z.number().int().min(1).max(100).default(1),
+  plan: z.string().max(32).optional(),
+  notes: z.string().max(500).optional()
+});
+
+function createLicenseForTenant(req, res) {
+  const parsed = createLicenseSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ success: false, error: 'invalid_body', issues: parsed.error.issues });
+  }
+  const tenant = tenantsRepo.getTenant(req.params.tenant_id);
+  if (!tenant) {
+    return res.status(404).json({ success: false, error: 'tenant_not_found' });
+  }
+  try {
+    const lic = license.createLicense({
+      tenant_id: tenant.id,
+      customer_name: parsed.data.customer_name,
+      months: parsed.data.months,
+      seats: parsed.data.seats,
+      plan: parsed.data.plan,
+      notes: parsed.data.notes
+    });
+    return res.status(201).json({ success: true, license: lic });
+  } catch (err) {
+    if (err && err.name === 'LicenseError') {
+      return res.status(400).json({ success: false, error: err.code, message: err.message });
+    }
+    throw err;
+  }
+}
+
+const renewSchema = z.object({ months: z.number().int().min(1).max(36) });
+
+function renewLicense(req, res) {
+  const parsed = renewSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ success: false, error: 'invalid_body', issues: parsed.error.issues });
+  }
+  const lic = license.getLicense(req.params.license_key);
+  if (!lic) {
+    return res.status(404).json({ success: false, error: 'license_not_found' });
+  }
+  const updated = license.renewLicense(lic.license_key, parsed.data.months);
+  return res.json({ success: true, license: updated });
+}
+
 module.exports = {
   listTenants,
   createTenant,
@@ -195,5 +248,7 @@ module.exports = {
   createSuperAdmin,
   patchAdmin,
   deleteAdmin,
-  listAdmins
+  listAdmins,
+  createLicenseForTenant,
+  renewLicense
 };

@@ -1,6 +1,7 @@
 const { z } = require('zod');
 const adminsRepo = require('../repos/admins');
 const tenantsRepo = require('../repos/tenants');
+const license = require('../license');
 const { signSession, setSessionCookie, clearSessionCookie } = require('../auth/session');
 
 function isSecure() {
@@ -11,7 +12,10 @@ function isSecure() {
 
 const loginSchema = z.object({
   username: z.string().min(1).max(64),
-  password: z.string().min(1).max(200)
+  password: z.string().min(1).max(200),
+  // tenant_admin role MUST present a valid NCLW key. super role ignores
+  // this field. Validated at runtime once the role is known.
+  license_key: z.string().min(1).max(64).optional()
 });
 
 async function login(req, res) {
@@ -19,7 +23,7 @@ async function login(req, res) {
   if (!parsed.success) {
     return res.status(400).json({ success: false, error: 'invalid_body' });
   }
-  const { username, password } = parsed.data;
+  const { username, password, license_key } = parsed.data;
   const admin = await adminsRepo.authenticate(username, password);
   if (!admin) {
     return res.status(401).json({ success: false, error: 'invalid_credentials' });
@@ -28,6 +32,23 @@ async function login(req, res) {
     const tenant = tenantsRepo.getTenant(admin.tenant_id);
     if (!tenant || tenant.status !== 'active') {
       return res.status(403).json({ success: false, error: 'tenant_suspended' });
+    }
+    // Tenant admins must present an active, unexpired NCLW key belonging
+    // to their own tenant. This is the third gate (after username +
+    // password) so a leaked admin credential alone can't get a session
+    // unless the company is paid up.
+    if (!license_key) {
+      return res.status(400).json({ success: false, error: 'license_key_required' });
+    }
+    const lic = license.getLicense(license_key);
+    if (!lic || lic.tenant_id !== admin.tenant_id) {
+      return res.status(401).json({ success: false, error: 'invalid_license_key' });
+    }
+    if (lic.status !== 'active') {
+      return res.status(401).json({ success: false, error: 'license_revoked' });
+    }
+    if (lic.expires_at && new Date(lic.expires_at) <= new Date()) {
+      return res.status(401).json({ success: false, error: 'license_expired' });
     }
   }
   const token = signSession({

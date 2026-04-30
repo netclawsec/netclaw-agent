@@ -133,7 +133,8 @@
   });
 
   // "+ 新增" buttons per tab dispatch to that tab's openCreate
-  $('open-create-license').addEventListener('click',  () => window.NC.licenses?.openCreate?.());
+  // open-create-license button removed — license create/renew lives in
+  // super-side UI now. Tenant license tab is read-only (revoke/seats only).
   $('open-create-dept').addEventListener('click',     () => window.NC.departments?.openCreate?.());
   $('open-create-emp').addEventListener('click',      () => window.NC.employees?.openCreate?.());
   $('open-build-installer').addEventListener('click', () => window.NC.installers?.openCreate?.());

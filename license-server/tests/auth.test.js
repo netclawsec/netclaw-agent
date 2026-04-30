@@ -105,9 +105,10 @@ test('login flow: super admin', async () => {
   }
 });
 
-test('login flow: tenant admin tied to tenant', async () => {
+test('login flow: tenant admin requires license_key + valid creds', async () => {
   await start();
   try {
+    const license = require('../src/license');
     const t = tenants.createTenant({ name: 'Acme', slug: 'acme-co', seat_quota: 5 });
     await admins.createAdmin({
       tenant_id: t.id,
@@ -115,13 +116,33 @@ test('login flow: tenant admin tied to tenant', async () => {
       password: 'mgr-pw-12345',
       role: 'tenant_admin'
     });
+    const lic = license.createLicense({
+      tenant_id: t.id,
+      customer_name: 'Acme',
+      months: 12,
+      seats: 1
+    });
 
-    const ok = await request('POST', '/api/auth/login', {
+    // Missing license_key — should be rejected.
+    const noKey = await request('POST', '/api/auth/login', {
       body: { username: 'mgr', password: 'mgr-pw-12345' }
+    });
+    assert.equal(noKey.status, 400);
+    assert.equal(noKey.json.error, 'license_key_required');
+
+    // Wrong license_key (not in DB).
+    const bogus = await request('POST', '/api/auth/login', {
+      body: { username: 'mgr', password: 'mgr-pw-12345', license_key: 'NCLW-FAKE-FAKE-FAKE' }
+    });
+    assert.equal(bogus.status, 401);
+    assert.equal(bogus.json.error, 'invalid_license_key');
+
+    // Happy path with the right key.
+    const ok = await request('POST', '/api/auth/login', {
+      body: { username: 'mgr', password: 'mgr-pw-12345', license_key: lic.license_key }
     });
     assert.equal(ok.status, 200);
     const cookie = extractCookie(ok.headers['set-cookie']);
-
     const me = await request('GET', '/api/auth/me', { cookie });
     assert.equal(me.json.admin.tenant_id, t.id);
     assert.equal(me.json.tenant.slug, 'acme-co');
@@ -130,7 +151,64 @@ test('login flow: tenant admin tied to tenant', async () => {
   }
 });
 
-test('login flow: tenant suspended blocks login', async () => {
+test('login flow: license_key from another tenant is rejected', async () => {
+  await start();
+  try {
+    const license = require('../src/license');
+    const tA = tenants.createTenant({ name: 'A', slug: 'co-a', seat_quota: 5 });
+    const tB = tenants.createTenant({ name: 'B', slug: 'co-b', seat_quota: 5 });
+    await admins.createAdmin({
+      tenant_id: tA.id,
+      username: 'mgrA',
+      password: 'mgr-pw-12345',
+      role: 'tenant_admin'
+    });
+    // Issue a license for tenant B but try to log into A with it.
+    const licB = license.createLicense({
+      tenant_id: tB.id,
+      customer_name: 'B',
+      months: 12,
+      seats: 1
+    });
+    const r = await request('POST', '/api/auth/login', {
+      body: { username: 'mgrA', password: 'mgr-pw-12345', license_key: licB.license_key }
+    });
+    assert.equal(r.status, 401);
+    assert.equal(r.json.error, 'invalid_license_key');
+  } finally {
+    await stop();
+  }
+});
+
+test('login flow: revoked license_key blocks tenant_admin login', async () => {
+  await start();
+  try {
+    const license = require('../src/license');
+    const t = tenants.createTenant({ name: 'Acme', slug: 'acme-co', seat_quota: 5 });
+    await admins.createAdmin({
+      tenant_id: t.id,
+      username: 'mgr',
+      password: 'mgr-pw-12345',
+      role: 'tenant_admin'
+    });
+    const lic = license.createLicense({
+      tenant_id: t.id,
+      customer_name: 'Acme',
+      months: 12,
+      seats: 1
+    });
+    license.revokeLicense(lic.license_key);
+    const r = await request('POST', '/api/auth/login', {
+      body: { username: 'mgr', password: 'mgr-pw-12345', license_key: lic.license_key }
+    });
+    assert.equal(r.status, 401);
+    assert.equal(r.json.error, 'license_revoked');
+  } finally {
+    await stop();
+  }
+});
+
+test('login flow: tenant suspended blocks login (before license check)', async () => {
   await start();
   try {
     const t = tenants.createTenant({ name: 'Acme', slug: 'acme-co', seat_quota: 5 });

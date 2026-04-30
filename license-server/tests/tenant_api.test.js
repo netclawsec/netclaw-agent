@@ -27,7 +27,6 @@ function start() {
   app.post('/api/auth/login', asyncHandler(authRoutes.login));
   app.get('/api/tenant/dashboard', mw.requireTenantAdmin, tenantRoutes.dashboard);
   app.get('/api/tenant/licenses', mw.requireTenantAdmin, tenantRoutes.listLicenses);
-  app.post('/api/tenant/licenses', mw.requireTenantAdmin, tenantRoutes.createLicense);
   app.get('/api/tenant/licenses/:license_key', mw.requireTenantAdmin, tenantRoutes.getLicenseDetail);
   app.post('/api/tenant/licenses/:license_key/revoke', mw.requireTenantAdmin, tenantRoutes.revokeLicense);
   app.get('/api/tenant/seats', mw.requireTenantAdmin, tenantRoutes.listSeats);
@@ -87,43 +86,52 @@ async function loginAsTenantAdmin() {
     password: 'mgr-pw-12345',
     role: 'tenant_admin'
   });
-  const login = await request('POST', '/api/auth/login', {
-    body: { username: 'mgr', password: 'mgr-pw-12345' }
+  // Issue a license so the admin can pass the third login gate. Use a
+  // small seat count so per-test quota math (seat_quota=10) leaves room
+  // for the test bodies to create more licenses.
+  const lic = license.createLicense({
+    tenant_id: t.id,
+    customer_name: 'admin-bootstrap',
+    months: 12,
+    seats: 1
   });
-  return { tenant: t, cookie: extractCookie(login.headers['set-cookie']) };
+  const login = await request('POST', '/api/auth/login', {
+    body: { username: 'mgr', password: 'mgr-pw-12345', license_key: lic.license_key }
+  });
+  return {
+    tenant: t,
+    cookie: extractCookie(login.headers['set-cookie']),
+    license: lic
+  };
 }
 
 test('tenant admin: dashboard reflects quota and counts', async () => {
   await start();
   try {
     const { tenant, cookie } = await loginAsTenantAdmin();
+    // loginAsTenantAdmin already issued one 1-seat bootstrap license.
+    // Add a 3-seat license here so totals are: 1 + 3 = 4 seats used.
     license.createLicense({ tenant_id: tenant.id, customer_name: 'employee-A', months: 1, seats: 3 });
     const r = await request('GET', '/api/tenant/dashboard', { cookie });
     assert.equal(r.status, 200);
     assert.equal(r.json.tenant.seat_quota, 10);
-    assert.equal(r.json.tenant.seats_used, 3);
-    assert.equal(r.json.tenant.seats_remaining, 7);
-    assert.equal(r.json.tenant.license_count, 1);
+    assert.equal(r.json.tenant.seats_used, 4);
+    assert.equal(r.json.tenant.seats_remaining, 6);
+    assert.equal(r.json.tenant.license_count, 2);
   } finally { await stop(); }
 });
 
-test('tenant admin: create license respects quota', async () => {
+test('tenant admin: POST /tenant/licenses no longer exists (moved to super)', async () => {
   await start();
   try {
     const { cookie } = await loginAsTenantAdmin();
-    const ok = await request('POST', '/api/tenant/licenses', {
+    // Route was deleted from cookieAuthRouter; Express returns 404. The
+    // create flow now lives at POST /super/tenants/:id/licenses.
+    const r = await request('POST', '/api/tenant/licenses', {
       cookie,
       body: { customer_name: 'employee-A', months: 6, seats: 5 }
     });
-    assert.equal(ok.status, 201);
-    assert.match(ok.json.license.license_key, /^NCLW-/);
-
-    const exceed = await request('POST', '/api/tenant/licenses', {
-      cookie,
-      body: { customer_name: 'employee-B', months: 6, seats: 6 }
-    });
-    assert.equal(exceed.status, 400);
-    assert.equal(exceed.json.error, 'quota_exceeded');
+    assert.equal(r.status, 404);
   } finally { await stop(); }
 });
 
@@ -153,6 +161,7 @@ test('tenant admin: list licenses scoped to own tenant', async () => {
   await start();
   try {
     const { tenant, cookie } = await loginAsTenantAdmin();
+    // bootstrap license + 2 here = 3 own-tenant rows.
     license.createLicense({ tenant_id: tenant.id, customer_name: 'mine-1', months: 1, seats: 1 });
     license.createLicense({ tenant_id: tenant.id, customer_name: 'mine-2', months: 1, seats: 1 });
 
@@ -161,7 +170,7 @@ test('tenant admin: list licenses scoped to own tenant', async () => {
 
     const r = await request('GET', '/api/tenant/licenses', { cookie });
     assert.equal(r.status, 200);
-    assert.equal(r.json.licenses.length, 2);
+    assert.equal(r.json.licenses.length, 3);
     assert.ok(r.json.licenses.every((l) => l.tenant_id === tenant.id));
   } finally { await stop(); }
 });
@@ -189,14 +198,15 @@ test('tenant admin: revoke does not free quota mid-cycle (active=true still coun
   await start();
   try {
     const { tenant, cookie } = await loginAsTenantAdmin();
+    // bootstrap license already accounts for 1 seat
     const lic = license.createLicense({ tenant_id: tenant.id, customer_name: 'tmp', months: 1, seats: 5 });
 
     let dash = (await request('GET', '/api/tenant/dashboard', { cookie })).json.tenant;
-    assert.equal(dash.seats_used, 5);
+    assert.equal(dash.seats_used, 6);
 
     await request('POST', `/api/tenant/licenses/${lic.license_key}/revoke`, { cookie });
 
     dash = (await request('GET', '/api/tenant/dashboard', { cookie })).json.tenant;
-    assert.equal(dash.seats_used, 0, 'revoked license should not count toward quota');
+    assert.equal(dash.seats_used, 1, 'revoked license should not count; bootstrap still counts');
   } finally { await stop(); }
 });

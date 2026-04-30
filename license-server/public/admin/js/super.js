@@ -153,6 +153,39 @@ async function openManageModal(tenant_id) {
       <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded text-sm">添加</button>
     </form>
 
+    <h4 class="text-sm font-semibold mt-4 mb-2 text-slate-700">License Keys</h4>
+    <div class="border border-slate-200 rounded overflow-hidden">
+      <table class="w-full text-sm"><thead class="bg-slate-50 text-slate-600 text-xs"><tr>
+        <th class="px-3 py-2 text-left font-medium">Key</th>
+        <th class="px-3 py-2 text-left font-medium">客户名</th>
+        <th class="px-3 py-2 text-left font-medium">座位</th>
+        <th class="px-3 py-2 text-left font-medium">到期</th>
+        <th class="px-3 py-2 text-left font-medium">状态</th>
+      </tr></thead><tbody class="divide-y divide-slate-100">${json.licenses.length
+        ? json.licenses.map((l) => `<tr>
+            <td class="px-3 py-2"><button class="font-mono text-xs text-indigo-600 hover:text-indigo-800" data-act="copy-key" data-key="${escape(l.license_key)}" title="点击复制">${escape(l.license_key)}</button></td>
+            <td class="px-3 py-2 text-xs">${escape(l.customer_name || '—')}</td>
+            <td class="px-3 py-2 text-xs">${l.seats}</td>
+            <td class="px-3 py-2 text-xs text-slate-500">${dt(l.expires_at)}</td>
+            <td class="px-3 py-2"><span class="text-xs ${l.status === 'active' ? 'text-green-700' : 'text-slate-400'}">${l.status === 'active' ? '活跃' : (l.status === 'revoked' ? '已吊销' : l.status)}</span></td>
+          </tr>`).join('')
+        : '<tr><td colspan="5" class="px-3 py-4 text-center text-slate-400 text-sm">还没有发出 License Key</td></tr>'
+      }</tbody></table>
+    </div>
+
+    <form id="add-license-form" class="mt-2 bg-slate-50 rounded p-3 space-y-2">
+      <div class="text-sm font-medium text-slate-700">为该公司发新 License Key</div>
+      <div class="grid grid-cols-3 gap-2">
+        <input id="al-cust" required maxlength="100" class="border border-slate-300 rounded px-2 py-1 text-sm col-span-3" placeholder="客户名 / 备注（如：${escape(t.name)} 2026 续费）" />
+        <input id="al-months" type="number" min="1" max="36" value="12" required class="border border-slate-300 rounded px-2 py-1 text-sm" placeholder="月数 1-36" />
+        <input id="al-seats" type="number" min="1" max="100" value="${Math.max(1, t.seat_quota)}" required class="border border-slate-300 rounded px-2 py-1 text-sm" placeholder="座位 1-100" />
+        <input id="al-plan" maxlength="32" class="border border-slate-300 rounded px-2 py-1 text-sm" placeholder="plan (可选)" />
+      </div>
+      <div id="al-err" class="hidden text-xs text-red-600"></div>
+      <div id="al-ok" class="hidden text-xs text-green-700 font-mono"></div>
+      <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded text-sm">发 License</button>
+    </form>
+
     <h4 class="text-sm font-semibold mt-4 mb-2 text-slate-700">配额</h4>
     <form id="quota-form" class="flex items-center gap-2">
       <input id="qf-quota" type="number" min="0" value="${t.seat_quota}" class="border border-slate-300 rounded px-2 py-1 text-sm w-32" />
@@ -183,6 +216,28 @@ async function openManageModal(tenant_id) {
     $('qf-msg').textContent = status < 400 ? '已更新' : '更新失败';
     setTimeout(() => loadTenants(), 200);
   };
+  $('add-license-form').onsubmit = async (e) => {
+    e.preventDefault();
+    $('al-err').classList.add('hidden');
+    $('al-ok').classList.add('hidden');
+    const body = {
+      customer_name: $('al-cust').value.trim(),
+      months: Number($('al-months').value),
+      seats: Number($('al-seats').value)
+    };
+    const planVal = $('al-plan').value.trim();
+    if (planVal) body.plan = planVal;
+    const { status, json: r } = await api('POST', `/api/super/tenants/${tenant_id}/licenses`, body);
+    if (status >= 400) {
+      $('al-err').textContent = (r.error || 'unknown_error') + (r.message ? '：' + r.message : '');
+      $('al-err').classList.remove('hidden');
+      return;
+    }
+    // Show the freshly generated key prominently with a copy hint.
+    $('al-ok').textContent = '✓ 已发：' + r.license.license_key + '（点击上面表格里的 key 即可复制）';
+    $('al-ok').classList.remove('hidden');
+    setTimeout(() => openManageModal(tenant_id), 800);
+  };
 }
 
 document.addEventListener('click', async (e) => {
@@ -196,6 +251,16 @@ document.addEventListener('click', async (e) => {
     if (!confirm(`确定要${next === 'suspended' ? '暂停' : '恢复'}这个租户吗？暂停会让所有员工立即失去访问权限。`)) return;
     await api('PATCH', `/api/super/tenants/${id}`, { status: next });
     loadTenants();
+  } else if (btn.dataset.act === 'copy-key') {
+    const key = btn.dataset.key;
+    try {
+      await navigator.clipboard.writeText(key);
+      const orig = btn.textContent;
+      btn.textContent = '已复制 ✓';
+      setTimeout(() => (btn.textContent = orig), 1200);
+    } catch (err) {
+      console.error('clipboard write failed', err);
+    }
   }
 });
 

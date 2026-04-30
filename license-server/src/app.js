@@ -81,6 +81,8 @@ cookieAuthRouter.get   ('/super/tenants/:tenant_id',            requireSuper, su
 cookieAuthRouter.patch ('/super/tenants/:tenant_id',            requireSuper, superRoutes.updateTenant);
 cookieAuthRouter.delete('/super/tenants/:tenant_id',            requireSuper, superRoutes.deleteTenant);
 cookieAuthRouter.post  ('/super/tenants/:tenant_id/admins',     requireSuper, asyncHandler(superRoutes.createTenantAdmin));
+cookieAuthRouter.post  ('/super/tenants/:tenant_id/licenses',   requireSuper, superRoutes.createLicenseForTenant);
+cookieAuthRouter.post  ('/super/licenses/:license_key/renew',   requireSuper, superRoutes.renewLicense);
 cookieAuthRouter.get   ('/super/admins',                        requireSuper, superRoutes.listAdmins);
 cookieAuthRouter.post  ('/super/admins',                        requireSuper, asyncHandler(superRoutes.createSuperAdmin));
 cookieAuthRouter.patch ('/super/admins/:admin_id',              requireSuper, asyncHandler(superRoutes.patchAdmin));
@@ -93,9 +95,7 @@ cookieAuthRouter.delete('/super/agent/versions/:version',       requireSuper, ag
 
 cookieAuthRouter.get   ('/tenant/dashboard',                              requireTenantAdmin, tenantRoutes.dashboard);
 cookieAuthRouter.get   ('/tenant/licenses',                               requireTenantAdmin, tenantRoutes.listLicenses);
-cookieAuthRouter.post  ('/tenant/licenses',                               requireTenantAdmin, tenantRoutes.createLicense);
 cookieAuthRouter.get   ('/tenant/licenses/:license_key',                  requireTenantAdmin, tenantRoutes.getLicenseDetail);
-cookieAuthRouter.post  ('/tenant/licenses/:license_key/renew',            requireTenantAdmin, tenantRoutes.renewLicense);
 cookieAuthRouter.post  ('/tenant/licenses/:license_key/revoke',           requireTenantAdmin, tenantRoutes.revokeLicense);
 cookieAuthRouter.patch ('/tenant/licenses/:license_key/seats',            requireTenantAdmin, tenantRoutes.updateLicenseSeats);
 cookieAuthRouter.post  ('/tenant/licenses/:license_key/unbind',           requireTenantAdmin, tenantRoutes.unbindSeat);

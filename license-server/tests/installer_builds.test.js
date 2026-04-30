@@ -101,10 +101,17 @@ async function loginAsAdmin(slug, username) {
     password: 'mgr-pw-12345',
     role: 'tenant_admin'
   });
-  const login = await request('POST', '/api/auth/login', {
-    body: { username, password: 'mgr-pw-12345' }
+  const license = require('../src/license');
+  const lic = license.createLicense({
+    tenant_id: t.id,
+    customer_name: `Co-${slug}`,
+    months: 12,
+    seats: 1
   });
-  return { tenant: t, cookie: extractCookie(login.headers['set-cookie']) };
+  const login = await request('POST', '/api/auth/login', {
+    body: { username, password: 'mgr-pw-12345', license_key: lic.license_key }
+  });
+  return { tenant: t, cookie: extractCookie(login.headers['set-cookie']), license: lic };
 }
 
 function seedDept(tenantId, abbrev = 'dev', name = '研发部') {

@@ -57,33 +57,9 @@ function listLicenses(req, res) {
   return res.json({ success: true, licenses: license.listLicensesByTenant(tenantOf(req)) });
 }
 
-const createSchema = z.object({
-  customer_name: z.string().min(1).max(100),
-  months: z.number().int().min(1).max(36),
-  seats: z.number().int().min(1).max(100).default(1),
-  plan: z.string().max(32).optional(),
-  notes: z.string().max(500).optional()
-});
-
-function createLicense(req, res) {
-  const parsed = createSchema.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({ success: false, error: 'invalid_body', issues: parsed.error.issues });
-  }
-  try {
-    const lic = license.createLicense({
-      tenant_id: tenantOf(req),
-      customer_name: parsed.data.customer_name,
-      months: parsed.data.months,
-      seats: parsed.data.seats,
-      plan: parsed.data.plan,
-      notes: parsed.data.notes
-    });
-    return res.status(201).json({ success: true, license: lic });
-  } catch (err) {
-    return handleLicenseError(res, err);
-  }
-}
+// License create + renew moved to super.js. Tenant admins can list/revoke/
+// adjust seats/unbind machines but can't extend their own paid period —
+// that comes from super on receipt of payment.
 
 function ensureOwned(req, res) {
   const lic = license.getLicense(req.params.license_key);
@@ -101,18 +77,7 @@ function getLicenseDetail(req, res) {
   return res.json({ success: true, license: lic, seats });
 }
 
-const renewSchema = z.object({ months: z.number().int().min(1).max(36) });
-
-function renewLicense(req, res) {
-  const lic = ensureOwned(req, res);
-  if (!lic) return;
-  const parsed = renewSchema.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({ success: false, error: 'invalid_body' });
-  }
-  const updated = license.renewLicense(lic.license_key, parsed.data.months);
-  return res.json({ success: true, license: updated });
-}
+// renewLicense moved to super.js for the same reason as createLicense.
 
 function revokeLicense(req, res) {
   const lic = ensureOwned(req, res);
@@ -376,9 +341,7 @@ function revokeInviteCode(req, res) {
 module.exports = {
   dashboard,
   listLicenses,
-  createLicense,
   getLicenseDetail,
-  renewLicense,
   revokeLicense,
   updateLicenseSeats,
   unbindSeat,
