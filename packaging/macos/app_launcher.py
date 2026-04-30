@@ -137,6 +137,7 @@ def main() -> int:
         width=1280,
         height=860,
         min_size=(900, 640),
+        maximized=True,
         resizable=True,
         confirm_close=False,
     )

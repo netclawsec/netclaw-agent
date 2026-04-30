@@ -275,12 +275,16 @@ def main() -> int:
         return 1
 
     try:
+        # maximized=True asks pywebview to start the window taking the full
+        # screen work area on first launch. Requires pywebview ≥ 4.0 (we
+        # pin ≥ 5.3 in pyproject.toml).
         webview.create_window(
             "NetClaw Agent",
             url,
             width=1280,
             height=860,
             min_size=(900, 640),
+            maximized=True,
             resizable=True,
             confirm_close=False,
         )
