@@ -76,6 +76,25 @@ cookieAuthRouter.patch ('/tenant/licenses/:license_key/seats',            requir
 cookieAuthRouter.post  ('/tenant/licenses/:license_key/unbind',           requireTenantAdmin, tenantRoutes.unbindSeat);
 cookieAuthRouter.get   ('/tenant/seats',                                  requireTenantAdmin, tenantRoutes.listSeats);
 
+// Departments (admin-side)
+cookieAuthRouter.get   ('/tenant/departments',                            requireTenantAdmin, tenantRoutes.listDepartments);
+cookieAuthRouter.post  ('/tenant/departments',                            requireTenantAdmin, tenantRoutes.createDepartment);
+cookieAuthRouter.patch ('/tenant/departments/:department_id',             requireTenantAdmin, tenantRoutes.updateDepartment);
+cookieAuthRouter.delete('/tenant/departments/:department_id',             requireTenantAdmin, tenantRoutes.deleteDepartment);
+
+// Employees (admin-side; "create employee" issues an invite code per §3.4-A)
+cookieAuthRouter.get   ('/tenant/employees',                              requireTenantAdmin, tenantRoutes.listEmployees);
+cookieAuthRouter.post  ('/tenant/employees',                              requireTenantAdmin, asyncHandler(tenantRoutes.createEmployee));
+cookieAuthRouter.patch ('/tenant/employees/:employee_id',                 requireTenantAdmin, tenantRoutes.updateEmployee);
+cookieAuthRouter.post  ('/tenant/employees/:employee_id/suspend',         requireTenantAdmin, tenantRoutes.suspendEmployee);
+cookieAuthRouter.post  ('/tenant/employees/:employee_id/reactivate',      requireTenantAdmin, tenantRoutes.reactivateEmployee);
+cookieAuthRouter.post  ('/tenant/employees/:employee_id/unbind',          requireTenantAdmin, tenantRoutes.unbindEmployeeMachine);
+cookieAuthRouter.delete('/tenant/employees/:employee_id',                 requireTenantAdmin, tenantRoutes.deleteEmployee);
+
+// Invite codes (admin-side)
+cookieAuthRouter.get   ('/tenant/invite-codes',                           requireTenantAdmin, tenantRoutes.listInviteCodes);
+cookieAuthRouter.post  ('/tenant/invite-codes/:code/revoke',              requireTenantAdmin, tenantRoutes.revokeInviteCode);
+
 app.use('/api', cookieAuthRouter);
 
 const path = require('node:path');
