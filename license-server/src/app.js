@@ -45,6 +45,19 @@ app.post('/api/license/verify',     verifyLimiter,   verify);
 app.post('/api/license/deactivate', verifyLimiter,   deactivate);
 app.post('/api/admin/licenses',     adminAuth,       admin);
 
+// Employee-side API (Bearer JWT auth; no cookies; rate-limited per IP).
+const employeeRoutes = require('./routes/employee');
+const employeeLoginLimiter    = rateLimit({ windowMs: 60_000, limit: 10, standardHeaders: true, legacyHeaders: false });
+const employeeRegisterLimiter = rateLimit({ windowMs: 60_000, limit: 5,  standardHeaders: true, legacyHeaders: false });
+const employeeReadLimiter     = rateLimit({ windowMs: 60_000, limit: 60, standardHeaders: true, legacyHeaders: false });
+
+app.post('/api/employee/register',         employeeRegisterLimiter, asyncHandler(employeeRoutes.register));
+app.post('/api/employee/login',            employeeLoginLimiter,    asyncHandler(employeeRoutes.login));
+app.get ('/api/employee/me',               employeeReadLimiter,     employeeRoutes.requireEmployee, employeeRoutes.me);
+app.post('/api/employee/refresh',          employeeReadLimiter,     employeeRoutes.requireEmployee, employeeRoutes.refresh);
+app.post('/api/employee/change-password',  employeeLoginLimiter,    employeeRoutes.requireEmployee, asyncHandler(employeeRoutes.changePassword));
+app.post('/api/employee/logout',           employeeReadLimiter,     employeeRoutes.requireEmployee, employeeRoutes.logout);
+
 const cookieAuthRouter = express.Router();
 cookieAuthRouter.use(csrfOriginGuard);
 
