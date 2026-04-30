@@ -185,6 +185,29 @@ const MIGRATIONS = [
           ON installer_builds(status, requested_at);
       `);
     }
+  },
+
+  {
+    version: 7,
+    name: 'agent_versions',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS agent_versions (
+          version             TEXT PRIMARY KEY,
+          download_url        TEXT NOT NULL,
+          sha256              TEXT NOT NULL,
+          size_bytes          INTEGER NOT NULL,
+          changelog           TEXT,
+          force_update_below  TEXT,
+          published_at        TEXT NOT NULL,
+          published_by        TEXT NOT NULL,
+          channel             TEXT NOT NULL DEFAULT 'stable'
+                              CHECK (channel IN ('stable', 'beta'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_agent_versions_published
+          ON agent_versions(channel, published_at);
+      `);
+    }
   }
 ];
 

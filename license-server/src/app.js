@@ -45,6 +45,13 @@ app.post('/api/license/verify',     verifyLimiter,   verify);
 app.post('/api/license/deactivate', verifyLimiter,   deactivate);
 app.post('/api/admin/licenses',     adminAuth,       admin);
 
+// Public agent-version-check (no auth — every installed client can ask
+// "what's latest?" — the actual download still requires the tenant-specific
+// signed URL the response carries).
+const agentVersionsRoutes = require('./routes/agent_versions');
+const versionCheckLimiter = rateLimit({ windowMs: 60_000, limit: 60, standardHeaders: true, legacyHeaders: false });
+app.get('/api/agent/version-check', versionCheckLimiter, agentVersionsRoutes.check);
+
 // Employee-side API (Bearer JWT auth; no cookies; rate-limited per IP).
 const employeeRoutes = require('./routes/employee');
 const employeeLoginLimiter    = rateLimit({ windowMs: 60_000, limit: 10, standardHeaders: true, legacyHeaders: false });
@@ -78,6 +85,11 @@ cookieAuthRouter.get   ('/super/admins',                        requireSuper, su
 cookieAuthRouter.post  ('/super/admins',                        requireSuper, asyncHandler(superRoutes.createSuperAdmin));
 cookieAuthRouter.patch ('/super/admins/:admin_id',              requireSuper, asyncHandler(superRoutes.patchAdmin));
 cookieAuthRouter.delete('/super/admins/:admin_id',              requireSuper, superRoutes.deleteAdmin);
+
+// Super-side agent version publish (one entry per shipped build)
+cookieAuthRouter.get   ('/super/agent/versions',                requireSuper, agentVersionsRoutes.listAll);
+cookieAuthRouter.post  ('/super/agent/versions',                requireSuper, agentVersionsRoutes.publish);
+cookieAuthRouter.delete('/super/agent/versions/:version',       requireSuper, agentVersionsRoutes.deleteOne);
 
 cookieAuthRouter.get   ('/tenant/dashboard',                              requireTenantAdmin, tenantRoutes.dashboard);
 cookieAuthRouter.get   ('/tenant/licenses',                               requireTenantAdmin, tenantRoutes.listLicenses);

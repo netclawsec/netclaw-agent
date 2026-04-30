@@ -612,6 +612,13 @@ def handle_get(handler, parsed) -> bool:
         info = git_info_for_workspace(Path(s.workspace))
         return j(handler, {"git": info})
 
+    if parsed.path == "/api/agent-update/check":
+        # Installed-build (Inno Setup) self-update. Distinct from
+        # /api/updates/check below which handles git-based dev updates.
+        from api.agent_self_update import check as _agent_update_check
+
+        return j(handler, _agent_update_check())
+
     if parsed.path == "/api/updates/check":
         settings = load_settings()
         if not settings.get("check_for_updates", True):
@@ -1353,6 +1360,15 @@ def handle_post(handler, parsed) -> bool:
         from api.updates import apply_update
 
         return j(handler, apply_update(target))
+
+    # ── Installed-build self-update (POST) ──
+    # Downloads the new Setup.exe to %TEMP%, validates sha256, then exec
+    # Inno installer with /SILENT /CLOSEAPPLICATIONS /RESTARTAPPLICATIONS.
+    # Process exits via os._exit(0) ~3s after this returns 200.
+    if parsed.path == "/api/agent-update/apply":
+        from api.agent_self_update import apply_update as _agent_update_apply
+
+        return j(handler, _agent_update_apply())
 
     # ── CLI session import (POST) ──
     if parsed.path == "/api/session/import_cli":
