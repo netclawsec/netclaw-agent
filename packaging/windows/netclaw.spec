@@ -52,15 +52,25 @@ for filename in ("pyproject.toml", "README.md", "LICENSE", "run_agent.py"):
         datas.append((str(src), "."))
 
 # Per-tenant bundle.json — set NETCLAW_BUNDLE_JSON to a validated bundle.json
-# path before invoking pyinstaller. Lands at top-level so
-# `Path(_MEIPASS) / 'bundle.json'` resolves at runtime (see employee_auth.py).
+# path before invoking pyinstaller. Lands at top-level (_MEIPASS / bundle.json)
+# so employee_auth.bundle_path() can find it at runtime.
+#
+# PyInstaller's datas tuple `(src, dest_dir)` keeps the source filename when
+# placing the file. To guarantee the destination is always literally
+# `bundle.json` regardless of what the caller named their source, we copy
+# into a tmpdir under a canonical name first.
 import os as _os
+import shutil as _shutil
+import tempfile as _tempfile
 _bundle_json = _os.environ.get("NETCLAW_BUNDLE_JSON")
 if _bundle_json:
     _bp = Path(_bundle_json)
     if not _bp.is_file():
         raise SystemExit(f"NETCLAW_BUNDLE_JSON points at missing file: {_bp}")
-    datas.append((str(_bp), "."))
+    _staging = Path(_tempfile.mkdtemp(prefix="netclaw-bundle-"))
+    _canonical = _staging / "bundle.json"
+    _shutil.copy2(_bp, _canonical)
+    datas.append((str(_canonical), "."))
 
 
 # ---------------------------------------------------------------------------

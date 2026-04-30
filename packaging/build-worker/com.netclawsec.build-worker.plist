@@ -27,6 +27,9 @@
   <dict>
     <key>PATH</key>
     <string>/usr/local/bin:/usr/bin:/bin</string>
+    <!-- Until ICP record + TLS land, override to http://120.55.247.72
+         in your installed copy under ~/Library/LaunchAgents/. The repo
+         file pins the canonical production URL so checkouts are correct. -->
     <key>LICENSE_SERVER_URL</key>
     <string>https://license.netclawsec.com.cn</string>
     <key>PARALLELS_VM_NAME</key>

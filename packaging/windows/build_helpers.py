@@ -27,6 +27,23 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Sequence
 
+# zh-CN Windows defaults to cp936 (GBK). Without this, printing a Chinese
+# tenant_name from the validate / display-name subcommands raises
+# UnicodeEncodeError, which then causes build.ps1's `& $pythonExe ...`
+# capture to come back empty and the build aborts with a confusing
+# "InvokeMethodOnNull" error a few lines later. Force UTF-8 unconditionally
+# so build.ps1 can rely on it.
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+    except (AttributeError, OSError):
+        pass
+if hasattr(sys.stderr, "reconfigure"):
+    try:
+        sys.stderr.reconfigure(encoding="utf-8")
+    except (AttributeError, OSError):
+        pass
+
 
 SCHEMA_VERSION = 1
 # Fixed namespace for uuid5(slug) → AppId. Do NOT change without a migration

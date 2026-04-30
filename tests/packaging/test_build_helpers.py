@@ -193,6 +193,19 @@ def test_display_name_falls_back_when_blank():
     assert build_helpers.display_app_name("   ") == "NetClaw Agent"
 
 
+def test_cli_display_name_round_trips_chinese(bundle_path, capsys, monkeypatch):
+    """Regression: zh-CN Windows defaults to cp936 stdout, which choked on
+    Chinese tenant_name and aborted the build at the display-name step.
+    The helper now reconfigures stdout to UTF-8 unconditionally, but we
+    pin the contract here so the next refactor doesn't quietly drop it.
+    """
+    rc = build_helpers._cli(["display-name", "演示公司"])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "演示公司" in out
+    assert out.startswith("NetClaw Agent")
+
+
 # --------------------------------------------------------------------------
 # CLI shim — build.ps1 calls these
 # --------------------------------------------------------------------------

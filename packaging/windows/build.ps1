@@ -1,4 +1,4 @@
-# NetClaw Agent — Windows installer build script.
+# NetClaw Agent - Windows installer build script.
 #
 # Generic build (no tenant params):
 #   powershell -ExecutionPolicy Bypass -File packaging\windows\build.ps1
@@ -15,7 +15,7 @@
 # Steps:
 #   1. uv venv + uv pip install (deps from pyproject.toml + pyinstaller)
 #   2. PyInstaller --onedir using packaging/windows/netclaw.spec
-#   3. Inno Setup compile packaging/windows/netclaw.iss → dist/<output>.exe
+#   3. Inno Setup compile packaging/windows/netclaw.iss -> dist/<output>.exe
 #
 # Env knobs:
 #   $env:NETCLAW_PYPI_INDEX = "https://mirrors.aliyun.com/pypi/simple/"  (China-friendly)
@@ -29,6 +29,14 @@ param(
 
 $ErrorActionPreference = "Continue"
 
+# Force UTF-8 so Chinese tenant_name in bundle.json doesn't get mangled by
+# Windows default code-page (cp936 / GBK on zh-CN installs). Both the PS
+# host's output stream and any Python subprocess we spawn need to agree.
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
+$env:PYTHONIOENCODING = "utf-8"
+$env:PYTHONUTF8 = "1"
+
 $root = Resolve-Path (Join-Path $PSScriptRoot '..\..')
 Set-Location $root
 Write-Host "===== build.ps1 from $root ====="
@@ -41,7 +49,7 @@ Write-Host "PyPI index : $pypiIndex"
 Write-Host "ISCC       : $iscc"
 
 if (-not (Test-Path $iscc)) {
-  Write-Host "❌ ISCC.exe not found at $iscc — install Inno Setup 6 first." -ForegroundColor Red
+  Write-Host "[FAIL] ISCC.exe not found at $iscc - install Inno Setup 6 first." -ForegroundColor Red
   exit 1
 }
 
@@ -49,11 +57,11 @@ if (-not (Test-Path $iscc)) {
 $perTenant = $false
 if ($BundleJson -or $TenantSlug) {
   if (-not $BundleJson -or -not $TenantSlug) {
-    Write-Host "❌ -BundleJson and -TenantSlug must be supplied together." -ForegroundColor Red
+    Write-Host "[FAIL] -BundleJson and -TenantSlug must be supplied together." -ForegroundColor Red
     exit 1
   }
   if (-not (Test-Path $BundleJson)) {
-    Write-Host "❌ bundle.json not found at: $BundleJson" -ForegroundColor Red
+    Write-Host "[FAIL] bundle.json not found at: $BundleJson" -ForegroundColor Red
     exit 1
   }
   $perTenant = $true
@@ -80,7 +88,7 @@ if ($perTenant) {
   $helper = Join-Path $root "packaging\windows\build_helpers.py"
   $validated = & $pythonExe $helper validate $BundleJson 2>&1
   if ($LASTEXITCODE -ne 0) {
-    Write-Host "❌ bundle.json validation failed: $validated" -ForegroundColor Red
+    Write-Host "[FAIL] bundle.json validation failed: $validated" -ForegroundColor Red
     exit 1
   }
   Write-Host "bundle.json OK : $validated"
@@ -126,10 +134,10 @@ if (Test-Path "dist\netclaw\netclaw.exe") {
   if ($perTenant) {
     $bundleEmbedded = Test-Path "dist\netclaw\_internal\bundle.json"
     if (-not $bundleEmbedded) {
-      Write-Host "❌ bundle.json was not embedded into dist\netclaw\_internal\." -ForegroundColor Red
+      Write-Host "[FAIL] bundle.json was not embedded into dist\netclaw\_internal\." -ForegroundColor Red
       exit 1
     }
-    Write-Host "bundle.json embedded ✓"
+    Write-Host "bundle.json embedded [ok]"
   }
 
   Write-Host ""
@@ -137,7 +145,7 @@ if (Test-Path "dist\netclaw\netclaw.exe") {
   cmd /c "dist\netclaw\netclaw.exe --version 2>&1"
   cmd /c "dist\netclaw\netclaw.exe --help 2>&1" | Out-Host
 } else {
-  Write-Host "❌ PyInstaller failed: dist\netclaw\netclaw.exe missing" -ForegroundColor Red
+  Write-Host "[FAIL] PyInstaller failed: dist\netclaw\netclaw.exe missing" -ForegroundColor Red
   exit 1
 }
 
@@ -166,8 +174,8 @@ Write-Host "===== installer artifact ====="
 Get-ChildItem dist\NetClaw-Agent-Setup*.exe -ErrorAction SilentlyContinue | Select-Object Name, @{N="MB";E={[math]::Round($_.Length / 1MB, 1)}}, FullName
 
 if ($isccExit -ne 0) {
-  Write-Host "❌ Inno Setup failed (exit $isccExit)" -ForegroundColor Red
+  Write-Host "[FAIL] Inno Setup failed (exit $isccExit)" -ForegroundColor Red
   exit 1
 }
 Write-Host ""
-Write-Host "✅ Build complete." -ForegroundColor Green
+Write-Host "[OK] Build complete." -ForegroundColor Green
