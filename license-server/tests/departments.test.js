@@ -93,6 +93,28 @@ test('deleteDepartment: refuses even when only soft-deleted employees remain', a
   assert.equal(removed.id, dept.id);
 });
 
+test('deleteDepartment: revoke unused invites then delete dept works', () => {
+  const { departments, tenant_id } = setup();
+  const inviteCodes = require('../src/repos/invite_codes');
+  const dept = departments.createDepartment({ tenant_id, name: '研发部', abbrev: 'dev' });
+  const invite = inviteCodes.createInviteCode({
+    tenant_id,
+    department_id: dept.id,
+    raw_username: 'zhangsan'
+  });
+  // Pending invite blocks deletion.
+  assert.throws(
+    () => departments.deleteDepartment(dept.id),
+    (err) => err.code === 'department_in_use'
+  );
+  // Once revoked, the invite no longer counts as pending; dept becomes deletable.
+  inviteCodes.revokeInviteCode(invite.code, tenant_id);
+  const removed = departments.deleteDepartment(dept.id);
+  assert.equal(removed.id, dept.id);
+  // Historical invite row is cascade-removed by the dept transaction.
+  assert.equal(inviteCodes.getByCode(invite.code), null);
+});
+
 test('deleteDepartment: refuses if active employees exist, allows when none', async () => {
   const { departments, tenant_id } = setup();
   const employees = require('../src/repos/employees');

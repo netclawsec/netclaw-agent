@@ -210,6 +210,35 @@ test('changePassword: requires correct old password', async () => {
   await employees.authenticate(tenant_id, 'dev-zhangsan', 'NEW_pass5678', 'fp-machine-aaaa-bbbb');
 });
 
+test('deleteEmployee: succeeds for invite-backed employee (clears invite back-pointer)', async () => {
+  const { tenants, departments, employees } = setup();
+  const inviteCodes = require('../src/repos/invite_codes');
+  const t = tenants.createTenant({ name: 'Acme', slug: 'acme-2', seat_quota: 10 });
+  const d = departments.createDepartment({ tenant_id: t.id, name: '研发部', abbrev: 'dev' });
+  // Simulate the full register flow: create invite, then materialize employee, then mark invite consumed.
+  const invite = inviteCodes.createInviteCode({
+    tenant_id: t.id,
+    department_id: d.id,
+    raw_username: 'zhangsan'
+  });
+  const emp = await employees.createEmployee({
+    tenant_id: t.id,
+    department_id: d.id,
+    raw_username: 'zhangsan',
+    password: 'abcd1234',
+    machine_fingerprint: 'fp-machine-aaaa-bbbb'
+  });
+  inviteCodes.consumeInviteCode(invite.code, t.id, emp.id);
+  // Bug from review: hard-delete used to throw raw SQLite FK error because
+  // invite_codes.used_by_employee_id pointed back at this row.
+  const removed = employees.deleteEmployee(emp.id);
+  assert.equal(removed.id, emp.id);
+  // The invite_code row survives, but its back-pointer is now NULL.
+  const fresh = inviteCodes.getByCode(invite.code);
+  assert.ok(fresh);
+  assert.equal(fresh.used_by_employee_id, null);
+});
+
 test('updateEmployee: rejects move into archived department', async () => {
   const { employees, departments, tenant_id, dept } = setup();
   const e = await employees.createEmployee({

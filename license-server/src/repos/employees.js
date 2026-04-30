@@ -59,6 +59,11 @@ const stmts = {
      WHERE id = ?
   `),
   touchLogin:       db.prepare('UPDATE tenant_employees SET last_login_at = ? WHERE id = ?'),
+  // Hard-delete clears the back-pointer in invite_codes first (FK has no
+  // ON DELETE clause) so we never surface a raw SQLite constraint error.
+  detachInvites:    db.prepare(`
+    UPDATE invite_codes SET used_by_employee_id = NULL WHERE used_by_employee_id = ?
+  `),
   delete:           db.prepare('DELETE FROM tenant_employees WHERE id = ?')
 };
 
@@ -235,10 +240,15 @@ async function authenticate(tenant_id, username, password, machine_fingerprint) 
   return getEmployee(emp.id);
 }
 
+const deleteEmployeeTx = db.transaction((id) => {
+  stmts.detachInvites.run(id);
+  stmts.delete.run(id);
+});
+
 function deleteEmployee(id) {
   const existing = stmts.getById.get(id);
   if (!existing) return null;
-  stmts.delete.run(id);
+  deleteEmployeeTx(id);
   return publicView(existing);
 }
 

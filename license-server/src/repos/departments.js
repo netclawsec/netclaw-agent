@@ -30,8 +30,13 @@ const stmts = {
   countAnyEmployees: db.prepare(
     `SELECT COUNT(*) AS n FROM tenant_employees WHERE department_id = ?`
   ),
-  countAnyInviteCodes: db.prepare(
-    `SELECT COUNT(*) AS n FROM invite_codes WHERE department_id = ?`
+  countPendingInviteCodes: db.prepare(
+    `SELECT COUNT(*) AS n FROM invite_codes WHERE department_id = ? AND used_at IS NULL`
+  ),
+  // Used / revoked invites still FK to the dept (no ON DELETE clause). Drop
+  // their history when the dept is removed so the FK doesn't block delete.
+  deleteHistoricalInvites: db.prepare(
+    `DELETE FROM invite_codes WHERE department_id = ? AND used_at IS NOT NULL`
   )
 };
 
@@ -117,6 +122,14 @@ function updateDepartment(id, { name, abbrev, status }) {
   return getDepartment(id);
 }
 
+const deleteDepartmentTx = db.transaction((id) => {
+  // Cascade away historical (used/revoked) invite codes — they're audit
+  // detritus once the dept is gone. Pending invites have already been
+  // refused above by the caller.
+  stmts.deleteHistoricalInvites.run(id);
+  stmts.delete.run(id);
+});
+
 function deleteDepartment(id) {
   const existing = getDepartment(id);
   if (!existing) return null;
@@ -128,14 +141,15 @@ function deleteDepartment(id) {
       'hard-delete employees (incl. soft-deleted) or migrate them first'
     );
   }
-  const inviteRefs = stmts.countAnyInviteCodes.get(id).n;
-  if (inviteRefs > 0) {
+  const pendingInvites = stmts.countPendingInviteCodes.get(id).n;
+  if (pendingInvites > 0) {
     throw new DepartmentError(
       'department_in_use',
-      `cannot delete department with ${inviteRefs} invite code(s); revoke them first`
+      `cannot delete department with ${pendingInvites} pending invite code(s); ` +
+      'revoke them first'
     );
   }
-  stmts.delete.run(id);
+  deleteDepartmentTx(id);
   return existing;
 }
 
