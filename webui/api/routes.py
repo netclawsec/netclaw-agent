@@ -440,6 +440,16 @@ def handle_get(handler, parsed) -> bool:
 
         return _license_status(handler)
 
+    if parsed.path == "/api/bundle":
+        from api.employee import handle_bundle as _bundle_get
+
+        return _bundle_get(handler)
+
+    if parsed.path == "/api/employee/whoami":
+        from api.employee import handle_whoami as _emp_whoami
+
+        return _emp_whoami(handler)
+
     if parsed.path == "/favicon.ico":
         static_root = Path(__file__).parent.parent / "static"
         ico_path = (static_root / "favicon.ico").resolve()
@@ -794,6 +804,21 @@ def handle_post(handler, parsed) -> bool:
         from api.license import handle_verify as _license_verify
 
         return _license_verify(handler, body)
+
+    if parsed.path == "/api/employee/register":
+        from api.employee import handle_register as _emp_register
+
+        return _emp_register(handler, body)
+
+    if parsed.path == "/api/employee/login":
+        from api.employee import handle_login as _emp_login
+
+        return _emp_login(handler, body)
+
+    if parsed.path == "/api/employee/logout":
+        from api.employee import handle_logout as _emp_logout
+
+        return _emp_logout(handler, body)
 
     if parsed.path == "/api/session/new":
         try:

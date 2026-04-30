@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>NetClaw Agent — 员工登录</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; height: 100%; font-family: -apple-system, "PingFang SC", "Helvetica Neue", Arial, sans-serif; background: #f1f5f9; color: #0f172a; }
+    .stage { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
+    .card { width: 100%; max-width: 460px; background: #fff; border-radius: 12px; box-shadow: 0 8px 32px rgba(15,23,42,.08); padding: 32px; }
+    .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+    .brand .logo { font-size: 28px; }
+    .brand .name { font-size: 16px; font-weight: 600; }
+    h1 { font-size: 22px; margin: 16px 0 4px; }
+    .tenant { font-size: 13px; color: #64748b; margin-bottom: 24px; }
+    .tabs { display: flex; gap: 4px; background: #f1f5f9; padding: 4px; border-radius: 8px; margin-bottom: 20px; }
+    .tab { flex: 1; padding: 8px 12px; border: 0; background: transparent; border-radius: 6px; font-size: 14px; cursor: pointer; color: #475569; }
+    .tab.active { background: #fff; color: #0f172a; box-shadow: 0 1px 2px rgba(15,23,42,.08); font-weight: 500; }
+    label { display: block; font-size: 13px; margin-bottom: 6px; color: #334155; font-weight: 500; }
+    input, select { width: 100%; padding: 9px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; font-family: inherit; }
+    input:focus, select:focus { outline: 2px solid #6366f1; outline-offset: -1px; border-color: transparent; }
+    .field { margin-bottom: 14px; }
+    .hint { font-size: 12px; color: #64748b; margin-top: 4px; }
+    .preview { font-family: ui-monospace, monospace; background: #f1f5f9; padding: 2px 6px; border-radius: 3px; font-size: 12px; color: #4338ca; }
+    .err { display: none; background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; padding: 10px 12px; border-radius: 6px; font-size: 13px; margin-bottom: 14px; }
+    .err.show { display: block; }
+    .btn { width: 100%; padding: 11px; border: 0; background: #4f46e5; color: #fff; border-radius: 6px; font-size: 14px; font-weight: 500; cursor: pointer; }
+    .btn:hover { background: #4338ca; }
+    .btn[disabled] { background: #cbd5e1; cursor: not-allowed; }
+    .footer { margin-top: 16px; text-align: center; font-size: 12px; color: #64748b; }
+    .panel { display: none; }
+    .panel.active { display: block; }
+    .loading { text-align: center; padding: 60px 0; color: #64748b; font-size: 14px; }
+    .nobundle { background: #fef3c7; border: 1px solid #fcd34d; color: #92400e; padding: 14px; border-radius: 8px; font-size: 13px; line-height: 1.5; }
+  </style>
+</head>
+<body>
+  <div class="stage">
+    <div class="card" id="card">
+      <div class="loading" id="loading">正在加载…</div>
+    </div>
+  </div>
+
+  <template id="tpl-form">
+    <div class="brand"><span class="logo">🐾</span><span class="name">NetClaw Agent</span></div>
+    <h1 id="title">欢迎</h1>
+    <div class="tenant" id="tenant"></div>
+    <div class="tabs">
+      <button class="tab active" data-mode="login">已注册 · 登录</button>
+      <button class="tab" data-mode="register">首次使用 · 注册</button>
+    </div>
+
+    <div class="err" id="err"></div>
+
+    <div class="panel active" data-panel="login">
+      <div class="field">
+        <label for="login-username">用户名</label>
+        <input id="login-username" placeholder="例如 dev-zhangsan" autocomplete="username" />
+        <div class="hint">完整 username（含部门前缀）。第一次注册成功后会自动填到这里。</div>
+      </div>
+      <div class="field">
+        <label for="login-password">密码</label>
+        <input id="login-password" type="password" autocomplete="current-password" />
+      </div>
+      <button class="btn" id="login-btn">登录</button>
+    </div>
+
+    <div class="panel" data-panel="register">
+      <div class="field">
+        <label for="reg-invite">邀请码</label>
+        <input id="reg-invite" placeholder="例如 3YDZASKB" maxlength="12" autocomplete="off" />
+        <div class="hint">公司管理员发给你的一次性邀请码（通常 8 位）。</div>
+      </div>
+      <div class="field">
+        <label for="reg-username">raw_username</label>
+        <input id="reg-username" placeholder="zhangsan" pattern="[a-z0-9._-]{2,32}" autocomplete="off" />
+        <div class="hint">2-32 位小写字母/数字/点/下划线/横线。最终 username = <span class="preview" id="reg-preview">部门缩写-zhangsan</span></div>
+      </div>
+      <div class="field">
+        <label for="reg-password">设置密码</label>
+        <input id="reg-password" type="password" autocomplete="new-password" />
+        <div class="hint">至少 8 位，必须同时包含字母和数字。</div>
+      </div>
+      <div class="field">
+        <label for="reg-password2">再输一次</label>
+        <input id="reg-password2" type="password" autocomplete="new-password" />
+      </div>
+      <button class="btn" id="reg-btn">注册并登录</button>
+    </div>
+
+    <div class="footer">登录信息保存在本地 <code>~/.netclaw/auth.json</code>，token 跟当前机器绑定。</div>
+  </template>
+
+  <template id="tpl-nobundle">
+    <div class="brand"><span class="logo">🐾</span><span class="name">NetClaw Agent</span></div>
+    <h1>这是通用版本</h1>
+    <div class="nobundle">
+      没有发现公司专属安装包配置（<code>bundle.json</code>）。<br><br>
+      如果你有 <strong>NCLW License Key</strong>（NCLW-XXXXX-…），请在终端运行：<br>
+      <code>netclaw license activate &lt;your-license-key&gt;</code><br><br>
+      如果你需要公司账号注册，请联系公司管理员发你专属安装包。
+    </div>
+  </template>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const card = $('card');
+
+    async function api(method, path, body) {
+      const res = await fetch(path, {
+        method,
+        headers: body ? { 'Content-Type': 'application/json' } : undefined,
+        body: body ? JSON.stringify(body) : undefined,
+        credentials: 'same-origin'
+      });
+      const json = await res.json().catch(() => ({}));
+      return { status: res.status, json };
+    }
+
+    function showError(msg) {
+      const el = $('err');
+      el.textContent = msg;
+      el.classList.add('show');
+    }
+    function clearError() { $('err').classList.remove('show'); }
+
+    function applyMode(mode) {
+      document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.dataset.mode === mode));
+      document.querySelectorAll('.panel').forEach((p) => p.classList.toggle('active', p.dataset.panel === mode));
+      clearError();
+    }
+
+    function refreshPreview(bundle) {
+      const raw = $('reg-username').value.trim();
+      const dept = bundle.departments[0];
+      $('reg-preview').textContent = dept && raw ? `${dept.abbrev}-${raw}` : `部门缩写-zhangsan`;
+    }
+
+    async function bootForm(bundle, alreadyLoggedIn) {
+      const tpl = $('tpl-form').content.cloneNode(true);
+      card.innerHTML = '';
+      card.appendChild(tpl);
+      $('title').textContent = alreadyLoggedIn ? '欢迎回来' : '请登录或注册';
+      $('tenant').textContent = bundle.tenant_name;
+
+      // If invite_code is not required, hide register tab.
+      if (bundle.require_invite_code === false) {
+        document.querySelector('[data-mode="register"]').style.display = 'none';
+      }
+
+      document.querySelectorAll('.tab').forEach((b) => b.addEventListener('click', () => applyMode(b.dataset.mode)));
+      $('reg-username').addEventListener('input', () => refreshPreview(bundle));
+
+      $('login-btn').addEventListener('click', async () => {
+        clearError();
+        const username = $('login-username').value.trim();
+        const password = $('login-password').value;
+        if (!username || !password) { showError('用户名和密码都要填'); return; }
+        $('login-btn').disabled = true;
+        $('login-btn').textContent = '登录中…';
+        try {
+          const { status, json } = await api('POST', '/api/employee/login', { username, password });
+          if (status >= 400) { showError(json.error || '登录失败'); return; }
+          // Success → reload to root WebUI.
+          window.location.href = '/';
+        } finally {
+          $('login-btn').disabled = false;
+          $('login-btn').textContent = '登录';
+        }
+      });
+
+      $('reg-btn').addEventListener('click', async () => {
+        clearError();
+        const invite_code = $('reg-invite').value.trim().toUpperCase();
+        const raw_username = $('reg-username').value.trim();
+        const password = $('reg-password').value;
+        const confirm = $('reg-password2').value;
+        if (!invite_code || !raw_username || !password) { showError('邀请码、用户名、密码都要填'); return; }
+        if (password !== confirm) { showError('两次密码不一致'); return; }
+        if (password.length < 8) { showError('密码至少 8 位'); return; }
+        if (!/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) {
+          showError('密码必须同时包含字母和数字'); return;
+        }
+        $('reg-btn').disabled = true;
+        $('reg-btn').textContent = '注册中…';
+        try {
+          const { status, json } = await api('POST', '/api/employee/register', { invite_code, raw_username, password });
+          if (status >= 400) { showError(json.error || '注册失败'); return; }
+          window.location.href = '/';
+        } finally {
+          $('reg-btn').disabled = false;
+          $('reg-btn').textContent = '注册并登录';
+        }
+      });
+    }
+
+    function bootNoBundle() {
+      const tpl = $('tpl-nobundle').content.cloneNode(true);
+      card.innerHTML = '';
+      card.appendChild(tpl);
+    }
+
+    (async () => {
+      const { json: bundle } = await api('GET', '/api/bundle');
+      if (!bundle.present) { bootNoBundle(); return; }
+      const { json: who } = await api('GET', '/api/employee/whoami');
+      // If a query param ?force=1 is set, always show wizard (lets the
+      // launcher push the user back here on logout).
+      const force = new URLSearchParams(window.location.search).has('force');
+      if (who.logged_in && !force) {
+        // Already logged in — straight to the agent UI.
+        window.location.href = '/';
+        return;
+      }
+      await bootForm(bundle, who.logged_in);
+    })();
+  </script>
+</body>
+</html>

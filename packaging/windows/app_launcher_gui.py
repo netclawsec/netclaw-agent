@@ -227,7 +227,27 @@ def main() -> int:
         return 1
     _log("port up; opening webview")
 
-    url = f"http://{host}:{port}"
+    # Per-company installer flow: if bundle.json is present and the user
+    # isn't logged in (or session is expired), point the webview at the
+    # employee-auth wizard instead of the root WebUI. The wizard redirects
+    # to "/" once register/login succeeds. Generic builds (no bundle.json)
+    # skip this entirely and keep using the legacy NCLW activation flow.
+    landing_path = ""
+    try:
+        from hermes_cli import employee_auth as _ea
+
+        if _ea.bundle_path() is not None:
+            try:
+                state = _ea.load_auth_state()
+            except Exception:
+                state = None
+            if state is None or state.is_expired():
+                landing_path = "/static/employee-auth.html"
+                _log("bundle.json present + no valid session → routing to wizard")
+    except Exception as exc:
+        _log(f"bundle/auth probe failed (continuing with root UI): {exc}")
+
+    url = f"http://{host}:{port}{landing_path}"
     try:
         import webview
 

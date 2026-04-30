@@ -51,6 +51,7 @@ from pathlib import Path
 from typing import Optional
 
 from hermes_cli import license as _license  # NetClaw Agent license client
+from hermes_cli import employee_cli as _employee_cli  # Multi-tenant employee auth CLI
 
 
 def _require_tty(command_name: str) -> None:
@@ -5495,6 +5496,12 @@ For more help on a command:
     # license command — NetClaw Agent license management
     # =========================================================================
     _license.register_subparser(subparsers)
+
+    # =========================================================================
+    # login / logout / whoami / register / change-password — multi-tenant employee auth
+    # (no-op for generic builds; kicks in once bundle.json is present)
+    # =========================================================================
+    _employee_cli.register_subparser(subparsers)
 
     # =========================================================================
     # chat command
