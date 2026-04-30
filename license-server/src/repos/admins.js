@@ -1,14 +1,12 @@
 const crypto = require('node:crypto');
-const util = require('node:util');
 const { db } = require('../db');
+const {
+  hashPassword: pwdHash,
+  verifyPassword,
+  PasswordError
+} = require('../auth/password');
 
-const PBKDF2_ITERATIONS = 600_000;
-const PBKDF2_KEYLEN = 32;
-const PBKDF2_DIGEST = 'sha256';
-const SALT_BYTES = 16;
 const USERNAME_RE = /^[a-zA-Z0-9_.-]{3,32}$/;
-
-const pbkdf2Async = util.promisify(crypto.pbkdf2);
 
 class AdminError extends Error {
   constructor(code, message) {
@@ -19,25 +17,14 @@ class AdminError extends Error {
 }
 
 async function hashPassword(password) {
-  if (typeof password !== 'string' || password.length < 8 || password.length > 200) {
-    throw new AdminError('invalid_password', 'password must be 8-200 chars');
+  try {
+    return await pwdHash(password);
+  } catch (err) {
+    if (err instanceof PasswordError) {
+      throw new AdminError(err.code, err.message);
+    }
+    throw err;
   }
-  const salt = crypto.randomBytes(SALT_BYTES);
-  const hash = await pbkdf2Async(password, salt, PBKDF2_ITERATIONS, PBKDF2_KEYLEN, PBKDF2_DIGEST);
-  return `pbkdf2$${PBKDF2_ITERATIONS}$${salt.toString('hex')}$${hash.toString('hex')}`;
-}
-
-async function verifyPassword(password, stored) {
-  if (typeof password !== 'string' || typeof stored !== 'string') return false;
-  const parts = stored.split('$');
-  if (parts.length !== 4 || parts[0] !== 'pbkdf2') return false;
-  const iterations = Number(parts[1]);
-  const salt = Buffer.from(parts[2], 'hex');
-  const expected = Buffer.from(parts[3], 'hex');
-  if (!Number.isInteger(iterations) || iterations < 1000) return false;
-  const actual = await pbkdf2Async(password, salt, iterations, expected.length, PBKDF2_DIGEST);
-  if (actual.length !== expected.length) return false;
-  return crypto.timingSafeEqual(actual, expected);
 }
 
 const stmts = {
