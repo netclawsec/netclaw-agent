@@ -236,6 +236,10 @@
     if (!confirm(`确定彻底删除员工 ${label}？\n\n此操作不可逆。如果只是离职可考虑改为"禁用"。`)) return;
     const { status, json } = await api('DELETE', `/api/tenant/employees/${id}`);
     if (status >= 400) alert('删除失败：' + formatErr(json));
+    // Backend clears invite_codes.used_by_employee_id on hard-delete, so any
+    // previously-loaded invites tab is now stale (a "used" invite becomes
+    // indistinguishable from "revoked" without the back-pointer).
+    window.NC.invites?.markStale?.();
     await loadEmployees();
   }
 
