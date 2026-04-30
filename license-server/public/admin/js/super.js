@@ -252,17 +252,44 @@ document.addEventListener('click', async (e) => {
     await api('PATCH', `/api/super/tenants/${id}`, { status: next });
     loadTenants();
   } else if (btn.dataset.act === 'copy-key') {
-    const key = btn.dataset.key;
-    try {
-      await navigator.clipboard.writeText(key);
-      const orig = btn.textContent;
-      btn.textContent = '已复制 ✓';
-      setTimeout(() => (btn.textContent = orig), 1200);
-    } catch (err) {
-      console.error('clipboard write failed', err);
-    }
+    copyToClipboard(btn.dataset.key, btn);
   }
 });
+
+// HTTP (non-secure-context) doesn't allow navigator.clipboard, so we
+// always go through this textarea+execCommand fallback path. Same logic
+// lives in tenant-core.js — kept inline here because super.html doesn't
+// load tenant-core.
+function copyToClipboard(text, btn) {
+  const flash = (msg) => {
+    if (!btn) return;
+    const orig = btn.textContent;
+    btn.textContent = msg;
+    setTimeout(() => (btn.textContent = orig), 1200);
+  };
+  const legacy = (s) => {
+    const ta = document.createElement('textarea');
+    ta.value = s;
+    ta.style.position = 'fixed';
+    ta.style.top = '-9999px';
+    ta.setAttribute('readonly', '');
+    document.body.appendChild(ta);
+    ta.select();
+    ta.setSelectionRange(0, s.length);
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch { ok = false; }
+    document.body.removeChild(ta);
+    return ok;
+  };
+  if (window.isSecureContext && navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(() => flash('已复制 ✓')).catch(() => {
+      if (legacy(text)) flash('已复制 ✓'); else { flash('请手动复制'); window.prompt('请手动复制（Ctrl/Cmd+C）：', text); }
+    });
+    return;
+  }
+  if (legacy(text)) flash('已复制 ✓');
+  else { flash('请手动复制'); window.prompt('请手动复制（Ctrl/Cmd+C）：', text); }
+}
 
 $('logout-btn').addEventListener('click', async () => {
   await api('POST', '/api/auth/logout');

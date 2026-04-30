@@ -46,16 +46,47 @@ NC.openModal = (html) => {
 NC.closeModal = () => NC.$('modal').classList.add('hidden');
 
 NC.copy = async (text, btn) => {
-  try {
-    await navigator.clipboard.writeText(text);
-    if (btn) {
-      const orig = btn.textContent;
-      btn.textContent = '已复制';
-      setTimeout(() => (btn.textContent = orig), 1200);
-    }
-  } catch {
-    if (btn) btn.textContent = '复制失败';
+  // navigator.clipboard requires a secure context (https or localhost).
+  // We're served over plain http in dev / pre-ICP installs, so fall back
+  // to the textarea+execCommand trick which works on every browser.
+  const flash = (msg) => {
+    if (!btn) return;
+    const orig = btn.textContent;
+    btn.textContent = msg;
+    setTimeout(() => (btn.textContent = orig), 1200);
+  };
+  const legacyCopy = (s) => {
+    const ta = document.createElement('textarea');
+    ta.value = s;
+    // off-screen but selectable
+    ta.style.position = 'fixed';
+    ta.style.top = '-9999px';
+    ta.style.left = '-9999px';
+    ta.setAttribute('readonly', '');
+    document.body.appendChild(ta);
+    ta.select();
+    ta.setSelectionRange(0, s.length);
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch { ok = false; }
+    document.body.removeChild(ta);
+    return ok;
+  };
+  // Prefer the modern API when available (it works in https + localhost).
+  if (window.isSecureContext && navigator.clipboard && navigator.clipboard.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      flash('已复制');
+      return;
+    } catch (_) { /* fall through */ }
   }
+  if (legacyCopy(text)) {
+    flash('已复制');
+    return;
+  }
+  // Last resort — show the text in a prompt so the user can manually
+  // copy (Ctrl/Cmd+C). Not pretty but never silently fails.
+  flash('请手动复制');
+  window.prompt('请手动复制（按 Ctrl/Cmd+C）：', text);
 };
 
 NC.errToast = (msg) => alert(msg);
