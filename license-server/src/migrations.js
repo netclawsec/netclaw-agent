@@ -66,6 +66,125 @@ const MIGRATIONS = [
       db.prepare(`UPDATE licenses SET tenant_id = 'default' WHERE tenant_id IS NULL`).run();
       db.exec(`CREATE INDEX IF NOT EXISTS idx_licenses_tenant ON licenses(tenant_id)`);
     }
+  },
+
+  {
+    version: 2,
+    name: 'departments',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS departments (
+          id          TEXT PRIMARY KEY,
+          tenant_id   TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+          name        TEXT NOT NULL,
+          abbrev      TEXT NOT NULL,
+          status      TEXT NOT NULL DEFAULT 'active'
+                      CHECK (status IN ('active', 'archived')),
+          created_at  TEXT NOT NULL,
+          created_by  TEXT,
+          UNIQUE (tenant_id, abbrev),
+          UNIQUE (tenant_id, name)
+        );
+        CREATE INDEX IF NOT EXISTS idx_departments_tenant ON departments(tenant_id);
+        CREATE INDEX IF NOT EXISTS idx_departments_status ON departments(status);
+      `);
+    }
+  },
+
+  {
+    version: 3,
+    name: 'tenant_employees',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS tenant_employees (
+          id                   TEXT PRIMARY KEY,
+          tenant_id            TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+          department_id        TEXT NOT NULL REFERENCES departments(id),
+          username             TEXT NOT NULL,
+          raw_username         TEXT NOT NULL,
+          password_hash        TEXT NOT NULL,
+          display_name         TEXT,
+          status               TEXT NOT NULL DEFAULT 'active'
+                               CHECK (status IN ('active', 'suspended', 'deleted')),
+          machine_fingerprint  TEXT,
+          bound_at             TEXT,
+          last_login_at        TEXT,
+          password_changed_at  TEXT,
+          created_at           TEXT NOT NULL,
+          created_by           TEXT,
+          UNIQUE (tenant_id, username)
+        );
+        CREATE INDEX IF NOT EXISTS idx_employees_tenant ON tenant_employees(tenant_id);
+        CREATE INDEX IF NOT EXISTS idx_employees_dept   ON tenant_employees(department_id);
+        CREATE INDEX IF NOT EXISTS idx_employees_status ON tenant_employees(status);
+        CREATE INDEX IF NOT EXISTS idx_employees_fp     ON tenant_employees(machine_fingerprint);
+      `);
+    }
+  },
+
+  {
+    version: 4,
+    name: 'invite_codes',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS invite_codes (
+          code                 TEXT PRIMARY KEY,
+          tenant_id            TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+          department_id        TEXT NOT NULL REFERENCES departments(id),
+          raw_username         TEXT NOT NULL,
+          display_name         TEXT,
+          used_at              TEXT,
+          used_by_employee_id  TEXT REFERENCES tenant_employees(id),
+          expires_at           TEXT NOT NULL,
+          created_at           TEXT NOT NULL,
+          created_by           TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_invite_codes_tenant  ON invite_codes(tenant_id);
+        CREATE INDEX IF NOT EXISTS idx_invite_codes_expires ON invite_codes(expires_at);
+        CREATE INDEX IF NOT EXISTS idx_invite_codes_used    ON invite_codes(used_at);
+      `);
+    }
+  },
+
+  {
+    version: 5,
+    name: 'seats_add_employee',
+    up: (db) => {
+      const cols = db.prepare("PRAGMA table_info(seats)").all();
+      const hasEmployee = cols.some((c) => c.name === 'employee_id');
+      if (!hasEmployee) {
+        db.exec(`ALTER TABLE seats ADD COLUMN employee_id TEXT REFERENCES tenant_employees(id)`);
+        db.exec(`CREATE INDEX IF NOT EXISTS idx_seats_employee ON seats(employee_id)`);
+      }
+    }
+  },
+
+  {
+    version: 6,
+    name: 'installer_builds',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS installer_builds (
+          id            TEXT PRIMARY KEY,
+          tenant_id     TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+          status        TEXT NOT NULL DEFAULT 'pending'
+                        CHECK (status IN ('pending', 'building', 'succeeded', 'failed')),
+          worker_kind   TEXT NOT NULL DEFAULT 'manual'
+                        CHECK (worker_kind IN ('manual', 'gh_actions')),
+          bundle_json   TEXT NOT NULL,
+          download_url  TEXT,
+          error         TEXT,
+          requested_by  TEXT NOT NULL,
+          requested_at  TEXT NOT NULL,
+          claimed_at    TEXT,
+          completed_at  TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_installer_builds_tenant ON installer_builds(tenant_id);
+        CREATE INDEX IF NOT EXISTS idx_installer_builds_status ON installer_builds(status);
+        CREATE INDEX IF NOT EXISTS idx_installer_builds_queue
+          ON installer_builds(status, requested_at);
+      `);
+    }
   }
 ];
 

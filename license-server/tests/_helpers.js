@@ -12,9 +12,11 @@ function freshDbEnv() {
   return dir;
 }
 
+const SRC_DIR = path.resolve(__dirname, '..', 'src') + path.sep;
+
 function purgeRequireCache() {
   for (const key of Object.keys(require.cache)) {
-    if (key.includes('/netclaw-license-server/src/')) {
+    if (key.startsWith(SRC_DIR)) {
       delete require.cache[key];
     }
   }

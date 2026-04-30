@@ -28,7 +28,7 @@ test('migrations are idempotent (running twice does not duplicate default tenant
   freshDbEnv();
   purgeRequireCache();
   const { db } = require('../src/db');
-  const { runMigrations } = require('../src/migrations');
+  const { runMigrations, MIGRATIONS } = require('../src/migrations');
 
   runMigrations(db);
   runMigrations(db);
@@ -37,7 +37,30 @@ test('migrations are idempotent (running twice does not duplicate default tenant
   assert.equal(count, 1);
 
   const versions = db.prepare('SELECT COUNT(*) AS n FROM schema_version').get().n;
-  assert.equal(versions, 1, 'schema_version should have exactly one row for v1');
+  assert.equal(versions, MIGRATIONS.length, 'schema_version should have one row per migration');
+});
+
+test('multi-tenant employee schema (v2-v6) creates departments / employees / invite_codes / installer_builds and adds employee_id to seats', () => {
+  freshDbEnv();
+  purgeRequireCache();
+  const { db } = require('../src/db');
+
+  const tables = db
+    .prepare("SELECT name FROM sqlite_master WHERE type='table'")
+    .all()
+    .map((r) => r.name);
+  assert.ok(tables.includes('departments'), 'departments table missing');
+  assert.ok(tables.includes('tenant_employees'), 'tenant_employees table missing');
+  assert.ok(tables.includes('invite_codes'), 'invite_codes table missing');
+  assert.ok(tables.includes('installer_builds'), 'installer_builds table missing');
+
+  const seatsCols = db.prepare('PRAGMA table_info(seats)').all().map((c) => c.name);
+  assert.ok(seatsCols.includes('employee_id'), 'employee_id column missing on seats');
+
+  const empCols = db.prepare('PRAGMA table_info(tenant_employees)').all().map((c) => c.name);
+  for (const expected of ['username', 'raw_username', 'password_hash', 'machine_fingerprint', 'department_id']) {
+    assert.ok(empCols.includes(expected), `tenant_employees.${expected} missing`);
+  }
 });
 
 test('pre-existing licenses are backfilled to default tenant', () => {
