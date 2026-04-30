@@ -235,3 +235,79 @@ def test_format_err_falls_back_to_message(isolated_home):
 def test_register_without_bundle_raises(isolated_home):
     with pytest.raises(ea.EmployeeAuthError, match="bundle"):
         ea.register(invite_code="ABC", raw_username="bob", password="pass1234")
+
+
+# ---------------- contract: server response shape ---------------------------
+# These tests pin the wire-format expected from the License Server. They
+# exist because codex round 3 caught a `token` vs `jwt` mismatch that the
+# pure unit tests didn't (no integration coverage). If the server side
+# renames a field, these break here instead of silently failing in prod.
+
+
+def test_state_from_login_response_parses_register_shape():
+    fp = "fp-aaaa-bbbb-cccc-dddd"
+    token = _fake_jwt(
+        {"sub": "emp-1", "tenant_id": "tenant-1", "fp": fp, "exp": 1893456000}
+    )
+    body = {
+        "success": True,
+        "employee_id": "emp-1",
+        "username": "dev-zhangsan",
+        "department": {"id": "d-1", "name": "研发部", "abbrev": "dev"},
+        "jwt": token,
+        "expires_at": "2030-01-01T00:00:00Z",
+    }
+    state = ea._state_from_login_response(body, server="https://x", fingerprint=fp)
+    assert state.token == token
+    assert state.employee_id == "emp-1"
+    assert state.username == "dev-zhangsan"
+    assert state.tenant_id == "tenant-1"
+    assert state.department_name == "研发部"
+    assert state.department_abbrev == "dev"
+    assert state.expires_at == "2030-01-01T00:00:00Z"
+
+
+def test_state_from_login_response_parses_login_shape_without_department():
+    fp = "fp-aaaa-bbbb-cccc-dddd"
+    token = _fake_jwt(
+        {"sub": "emp-1", "tenant_id": "tenant-1", "fp": fp, "exp": 1893456000}
+    )
+    # login response — no `department` key (only register includes it).
+    body = {
+        "success": True,
+        "employee_id": "emp-1",
+        "username": "dev-zhangsan",
+        "jwt": token,
+        "expires_at": "2030-01-01T00:00:00Z",
+    }
+    state = ea._state_from_login_response(body, server="https://x", fingerprint=fp)
+    assert state.username == "dev-zhangsan"
+    assert state.department_id == ""
+    assert state.department_name is None
+
+
+def test_state_from_login_response_rejects_token_field_drift():
+    # If server ever returns the legacy `token` key, we want a loud failure
+    # rather than a silently-empty state. This is the regression that codex
+    # round 3 caught in the original commit.
+    fp = "fp"
+    body = {"success": True, "employee_id": "emp-1", "username": "x", "token": "oldkey"}
+    with pytest.raises(ea.EmployeeAuthError, match="missing jwt"):
+        ea._state_from_login_response(body, server="https://x", fingerprint=fp)
+
+
+def test_state_from_login_response_rejects_fp_claim_mismatch():
+    # Defense-in-depth: if a swapped server response carries a JWT bound to
+    # a different machine fingerprint, refuse to save it.
+    fp_local = "fp-local-machine"
+    token = _fake_jwt(
+        {"sub": "emp-1", "tenant_id": "tenant-1", "fp": "fp-OTHER-MACHINE"}
+    )
+    body = {
+        "success": True,
+        "employee_id": "emp-1",
+        "username": "x",
+        "jwt": token,
+    }
+    with pytest.raises(ea.EmployeeAuthError, match="fingerprint"):
+        ea._state_from_login_response(body, server="https://x", fingerprint=fp_local)

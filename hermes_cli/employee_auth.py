@@ -297,22 +297,42 @@ def _request_json(
 def _state_from_login_response(
     body: dict, *, server: str, fingerprint: str
 ) -> EmployeeState:
-    token = body.get("token")
-    emp = body.get("employee") or {}
-    if not token or not emp.get("id"):
-        raise EmployeeAuthError("server response missing token or employee fields")
+    """Parse a register/login response per [routes/employee.js#register|login].
+
+    Server contract (flat shape):
+        { success, employee_id, username, jwt, expires_at,
+          department?: { id, name, abbrev } }   # department only on register
+    """
+    token = body.get("jwt")
+    employee_id = body.get("employee_id")
+    username = body.get("username")
+    if not token or not employee_id or not username:
+        raise EmployeeAuthError("server response missing jwt / employee_id / username")
+    # JWT claims are the authoritative source for tenant_id + fingerprint —
+    # validate they match what we sent so a swapped/forged response can't
+    # silently rewrite our local binding.
+    try:
+        claims = jwt_payload(token)
+    except EmployeeAuthError as err:
+        raise EmployeeAuthError(f"server returned malformed JWT: {err}") from err
+    claim_fp = claims.get("fp")
+    if claim_fp and claim_fp != fingerprint:
+        raise EmployeeAuthError(
+            "JWT fingerprint claim does not match this machine; refusing to save"
+        )
+    department = body.get("department") or {}
     return EmployeeState(
         token=token,
-        employee_id=emp["id"],
-        tenant_id=emp.get("tenant_id", ""),
-        username=emp.get("username", ""),
-        display_name=emp.get("display_name"),
-        department_id=emp.get("department_id", ""),
-        department_name=emp.get("department_name"),
-        department_abbrev=emp.get("department_abbrev"),
+        employee_id=employee_id,
+        tenant_id=claims.get("tenant_id") or "",
+        username=username,
+        display_name=None,
+        department_id=department.get("id", ""),
+        department_name=department.get("name"),
+        department_abbrev=department.get("abbrev"),
         machine_fingerprint=fingerprint,
         server=server,
-        expires_at=jwt_expires_at(token),
+        expires_at=body.get("expires_at") or jwt_expires_at(token),
         refreshed_at=_now_iso(),
     )
 
@@ -374,7 +394,33 @@ def login(
         raise EmployeeAuthError(_format_err("login failed", status, body))
     state = _state_from_login_response(body, server=server, fingerprint=fp)
     save_auth_state(state)
+    # Login response carries no department info — backfill from /me so the
+    # local cache + status line are populated. Best-effort: a failure here
+    # doesn't invalidate the just-saved session.
+    try:
+        _backfill_state_from_me(state)
+    except EmployeeAuthError:
+        pass
     return state
+
+
+def _backfill_state_from_me(state: EmployeeState) -> None:
+    """Populate display_name + department_* by calling /api/employee/me."""
+    status, body = _request_json(
+        "GET", f"{state.server}/api/employee/me", bearer=state.token
+    )
+    if status != 200:
+        raise EmployeeAuthError(_format_err("whoami failed", status, body))
+    emp = body.get("employee") or {}
+    dept = body.get("department") or {}
+    state.display_name = emp.get("display_name")
+    if not state.tenant_id:
+        state.tenant_id = emp.get("tenant_id", "") or state.tenant_id
+    if dept:
+        state.department_id = dept.get("id", state.department_id)
+        state.department_name = dept.get("name") or state.department_name
+        state.department_abbrev = dept.get("abbrev") or state.department_abbrev
+    save_auth_state(state)
 
 
 def refresh(state: Optional[EmployeeState] = None) -> EmployeeState:
@@ -382,15 +428,18 @@ def refresh(state: Optional[EmployeeState] = None) -> EmployeeState:
     if state is None:
         raise EmployeeAuthError("not logged in")
     status, body = _request_json(
-        "POST", f"{state.server}/api/employee/refresh", bearer=state.token
+        "POST",
+        f"{state.server}/api/employee/refresh",
+        payload={"machine_fingerprint": state.machine_fingerprint},
+        bearer=state.token,
     )
     if status != 200:
         raise EmployeeAuthError(_format_err("refresh failed", status, body))
-    new_token = body.get("token")
+    new_token = body.get("jwt")
     if not new_token:
-        raise EmployeeAuthError("refresh response missing token")
+        raise EmployeeAuthError("refresh response missing jwt")
     state.token = new_token
-    state.expires_at = jwt_expires_at(new_token)
+    state.expires_at = body.get("expires_at") or jwt_expires_at(new_token)
     state.refreshed_at = _now_iso()
     save_auth_state(state)
     return state

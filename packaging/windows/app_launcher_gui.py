@@ -241,7 +241,19 @@ def main() -> int:
                 state = _ea.load_auth_state()
             except Exception:
                 state = None
-            if state is None or state.is_expired():
+            # Treat "valid" as: state loaded, JWT decodes cleanly, fp claim
+            # matches this machine, and not expired. Anything weaker (e.g.
+            # a half-written auth.json with future expires_at but garbage
+            # token) routes back to the wizard.
+            valid = False
+            if state is not None and not state.is_expired():
+                try:
+                    claims = _ea.jwt_payload(state.token)
+                    if claims.get("fp") == state.machine_fingerprint:
+                        valid = True
+                except _ea.EmployeeAuthError:
+                    valid = False
+            if not valid:
                 landing_path = "/static/employee-auth.html"
                 _log("bundle.json present + no valid session → routing to wizard")
     except Exception as exc:
