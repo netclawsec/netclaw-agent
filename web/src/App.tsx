@@ -8,12 +8,10 @@ import CommandCenter from "@/pages/CommandCenter";
 import SocialPage from "@/pages/SocialPage";
 import VideoStudioPage from "@/pages/VideoStudioPage";
 import ImageStudioPage from "@/pages/ImageStudioPage";
-import WechatPage from "@/pages/WechatPage";
 import AgentChatPage from "@/pages/AgentChatPage";
 import AnalyticsNewPage from "@/pages/AnalyticsNewPage";
 import SettingsPage from "@/pages/SettingsPage";
 import AccountPage from "@/pages/AccountPage";
-import KitchenSink from "@/pages/dev/KitchenSink";
 
 // Existing ops pages — relocated under /settings/runtime/* (Phase 9 consolidation)
 import StatusPage from "@/pages/StatusPage";
@@ -38,15 +36,6 @@ export default function App() {
     );
   }
 
-  // /dev/*: own shell (KitchenSink wraps itself in AppShell)
-  if (location.pathname.startsWith("/dev/")) {
-    return (
-      <Routes>
-        <Route path="/dev/kitchen-sink" element={<KitchenSink />} />
-      </Routes>
-    );
-  }
-
   // Main app: MainShell wraps every primary product route.
   return (
     <MainShell>
@@ -55,7 +44,6 @@ export default function App() {
         <Route path="/social" element={<SocialPage />} />
         <Route path="/studio/video" element={<VideoStudioPage />} />
         <Route path="/studio/image" element={<ImageStudioPage />} />
-        <Route path="/wechat" element={<WechatPage />} />
         <Route path="/agent-chat" element={<AgentChatPage />} />
         <Route path="/analytics" element={<AnalyticsNewPage />} />
 

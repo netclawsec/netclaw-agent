@@ -33,6 +33,7 @@ interface SearchResult {
   rank: number;
   aweme_id?: string;
   note_id?: string;
+  feed_id?: string;
   title: string;
   author: string;
   likes: string;
@@ -338,7 +339,7 @@ function LibraryPanel() {
 // ─────────────────────────────────────────────────────────────────────────
 
 function InterceptPanel() {
-  const [platform, setPlatform] = useState<"douyin" | "xhs">("douyin");
+  const [platform, setPlatform] = useState<"douyin" | "xhs" | "shipinhao">("douyin");
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[] | null>(null);
   const [loading, setLoading] = useState(false);
@@ -384,7 +385,7 @@ function InterceptPanel() {
     setSelected(r);
     setComments(null);
     setError(null);
-    const target = platform === "douyin" ? r.aweme_id : r.note_id;
+    const target = platform === "douyin" ? r.aweme_id : platform === "xhs" ? r.note_id : r.feed_id;
     if (!target) {
       setError("未拿到目标 ID（搜索结果可能解析失败）");
       return;
@@ -407,7 +408,7 @@ function InterceptPanel() {
 
   async function sendReply(dryRun = false) {
     if (!selected || !replyText.trim()) return;
-    const target = platform === "douyin" ? selected.aweme_id : selected.note_id;
+    const target = platform === "douyin" ? selected.aweme_id : platform === "xhs" ? selected.note_id : selected.feed_id;
     if (!target) return;
     setError(null);
     try {
@@ -444,10 +445,11 @@ function InterceptPanel() {
             <select
               className="h-9 rounded-md border border-input bg-background px-2 text-sm"
               value={platform}
-              onChange={(e) => setPlatform(e.target.value as "douyin" | "xhs")}
+              onChange={(e) => setPlatform(e.target.value as "douyin" | "xhs" | "shipinhao")}
             >
               <option value="douyin">抖音 / Douyin</option>
               <option value="xhs">小红书 / XHS</option>
+              <option value="shipinhao">视频号 / Shipinhao</option>
             </select>
             <Input
               className="flex-1 min-w-[200px]"

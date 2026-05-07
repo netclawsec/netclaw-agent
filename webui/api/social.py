@@ -128,8 +128,8 @@ def _require_field(body: dict[str, Any], field: str, kind: type = str) -> Any:
 
 def _validate_platform(platform: str) -> str:
     norm = platform.strip().lower()
-    if norm not in ("douyin", "xhs"):
-        raise ValueError("platform must be 'douyin' or 'xhs'")
+    if norm not in ("douyin", "xhs", "shipinhao"):
+        raise ValueError("platform must be one of: douyin, xhs, shipinhao")
     return norm
 
 
@@ -262,7 +262,7 @@ def handle_intercept_comments(handler) -> bool:
     except ValueError as exc:
         return j(handler, {"error": str(exc)}, status=400)
 
-    id_arg = "aweme_id" if platform == "douyin" else "note_id"
+    id_arg = {"douyin": "aweme_id", "xhs": "note_id", "shipinhao": "feed_id"}[platform]
     args = [platform, "comments", target_id, "--limit", str(max(1, min(200, limit)))]
     result = _run_opencli(args, timeout=180)
     if result.get("ok"):
