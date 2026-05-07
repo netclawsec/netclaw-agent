@@ -21,6 +21,8 @@ import uuid
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+from hermes_cli.employee_auth import employee_data_root
+
 # ── Basic layout ──────────────────────────────────────────────────────────────
 HOME = Path.home()
 # REPO_ROOT is the directory that contains this file's parent (api/ -> repo root)
@@ -35,11 +37,44 @@ TLS_CERT = os.getenv("HERMES_WEBUI_TLS_CERT", "").strip() or None
 TLS_KEY = os.getenv("HERMES_WEBUI_TLS_KEY", "").strip() or None
 TLS_ENABLED = TLS_CERT is not None and TLS_KEY is not None
 
+
+class _EmployeeScopedPath(os.PathLike):
+    """Path-like object that follows the currently logged-in employee."""
+
+    def __init__(self, *parts: str):
+        self._parts = tuple(str(part) for part in parts)
+
+    def _path(self) -> Path:
+        return employee_data_root().joinpath(*self._parts).resolve()
+
+    def __fspath__(self) -> str:
+        return os.fspath(self._path())
+
+    def __truediv__(self, part: str) -> "_EmployeeScopedPath":
+        return _EmployeeScopedPath(*self._parts, str(part))
+
+    def __getattr__(self, name: str):
+        return getattr(self._path(), name)
+
+    def __str__(self) -> str:
+        return str(self._path())
+
+    def __repr__(self) -> str:
+        return repr(self._path())
+
+    def __eq__(self, other: object) -> bool:
+        try:
+            return self._path() == Path(other)  # type: ignore[arg-type]
+        except TypeError:
+            return False
+
+
 # ── State directory (env-overridable, never inside repo) ──────────────────────
+_STATE_DIR_OVERRIDE = os.getenv("HERMES_WEBUI_STATE_DIR", "").strip()
 STATE_DIR = (
-    Path(os.getenv("HERMES_WEBUI_STATE_DIR", str(HOME / ".hermes" / "webui")))
-    .expanduser()
-    .resolve()
+    Path(_STATE_DIR_OVERRIDE).expanduser().resolve()
+    if _STATE_DIR_OVERRIDE
+    else _EmployeeScopedPath("webui")
 )
 
 SESSION_DIR = STATE_DIR / "sessions"
@@ -245,7 +280,6 @@ def _workspace_candidates(raw: str | Path | None = None) -> list[Path]:
     return candidates
 
 
-
 def _ensure_workspace_dir(path: Path) -> bool:
     """Best-effort check that a workspace directory exists and is writable."""
     try:
@@ -254,7 +288,6 @@ def _ensure_workspace_dir(path: Path) -> bool:
         return path.is_dir() and os.access(path, os.R_OK | os.W_OK | os.X_OK)
     except Exception:
         return False
-
 
 
 def resolve_default_workspace(raw: str | Path | None = None) -> Path:
@@ -266,7 +299,6 @@ def resolve_default_workspace(raw: str | Path | None = None) -> Path:
         "Could not create or access any usable workspace directory. "
         "Set HERMES_WEBUI_DEFAULT_WORKSPACE to a writable path."
     )
-
 
 
 def _discover_default_workspace() -> Path:
@@ -282,7 +314,9 @@ def _discover_default_workspace() -> Path:
 
 
 DEFAULT_WORKSPACE = _discover_default_workspace()
-DEFAULT_MODEL = os.getenv("HERMES_WEBUI_DEFAULT_MODEL", "")  # Empty = use provider default; avoids showing unavailable OpenAI model to non-OpenAI users (#646)
+DEFAULT_MODEL = os.getenv(
+    "HERMES_WEBUI_DEFAULT_MODEL", ""
+)  # Empty = use provider default; avoids showing unavailable OpenAI model to non-OpenAI users (#646)
 
 
 # ── Startup diagnostics ───────────────────────────────────────────────────────
@@ -409,6 +443,8 @@ _DEFAULT_TOOLSETS = [
     "web",
     "webhook",
 ]
+
+
 def _resolve_cli_toolsets(cfg=None):
     """Resolve CLI toolsets using the agent's _get_platform_tools() so that
     MCP server toolsets are automatically included, matching CLI behaviour."""
@@ -416,10 +452,12 @@ def _resolve_cli_toolsets(cfg=None):
         cfg = get_config()
     try:
         from hermes_cli.tools_config import _get_platform_tools
+
         return list(_get_platform_tools(cfg, "cli"))
     except Exception:
         # Fallback: read raw list from config (MCP toolsets will be missing)
         return cfg.get("platform_toolsets", {}).get("cli", _DEFAULT_TOOLSETS)
+
 
 CLI_TOOLSETS = _resolve_cli_toolsets()
 
@@ -429,29 +467,65 @@ CLI_TOOLSETS = _resolve_cli_toolsets()
 # Also used as the OpenRouter model list — keep this curated to current, widely-used models.
 _FALLBACK_MODELS = [
     # OpenAI
-    {"provider": "OpenAI",    "id": "openai/gpt-5.4-mini",                "label": "GPT-5.4 Mini"},
-    {"provider": "OpenAI",    "id": "openai/gpt-5.4",                     "label": "GPT-5.4"},
+    {"provider": "OpenAI", "id": "openai/gpt-5.4-mini", "label": "GPT-5.4 Mini"},
+    {"provider": "OpenAI", "id": "openai/gpt-5.4", "label": "GPT-5.4"},
     # Anthropic — 4.6 flagship + 4.5 generation
-    {"provider": "Anthropic", "id": "anthropic/claude-opus-4.6",          "label": "Claude Opus 4.6"},
-    {"provider": "Anthropic", "id": "anthropic/claude-sonnet-4.6",        "label": "Claude Sonnet 4.6"},
-    {"provider": "Anthropic", "id": "anthropic/claude-sonnet-4-5",        "label": "Claude Sonnet 4.5"},
-    {"provider": "Anthropic", "id": "anthropic/claude-haiku-4-5",         "label": "Claude Haiku 4.5"},
+    {
+        "provider": "Anthropic",
+        "id": "anthropic/claude-opus-4.6",
+        "label": "Claude Opus 4.6",
+    },
+    {
+        "provider": "Anthropic",
+        "id": "anthropic/claude-sonnet-4.6",
+        "label": "Claude Sonnet 4.6",
+    },
+    {
+        "provider": "Anthropic",
+        "id": "anthropic/claude-sonnet-4-5",
+        "label": "Claude Sonnet 4.5",
+    },
+    {
+        "provider": "Anthropic",
+        "id": "anthropic/claude-haiku-4-5",
+        "label": "Claude Haiku 4.5",
+    },
     # Google
-    {"provider": "Google",    "id": "google/gemini-3.1-pro-preview",              "label": "Gemini 3.1 Pro Preview"},
-    {"provider": "Google",    "id": "google/gemini-3-flash-preview",              "label": "Gemini 3 Flash Preview"},
+    {
+        "provider": "Google",
+        "id": "google/gemini-3.1-pro-preview",
+        "label": "Gemini 3.1 Pro Preview",
+    },
+    {
+        "provider": "Google",
+        "id": "google/gemini-3-flash-preview",
+        "label": "Gemini 3 Flash Preview",
+    },
     # DeepSeek
-    {"provider": "DeepSeek",  "id": "deepseek/deepseek-chat-v3-0324",     "label": "DeepSeek V3"},
-    {"provider": "DeepSeek",  "id": "deepseek/deepseek-r1",               "label": "DeepSeek R1"},
+    {
+        "provider": "DeepSeek",
+        "id": "deepseek/deepseek-chat-v3-0324",
+        "label": "DeepSeek V3",
+    },
+    {"provider": "DeepSeek", "id": "deepseek/deepseek-r1", "label": "DeepSeek R1"},
     # Qwen (Alibaba) — strong coding and general models
-    {"provider": "Qwen",      "id": "qwen/qwen3-coder",                   "label": "Qwen3 Coder"},
-    {"provider": "Qwen",      "id": "qwen/qwen3.6-plus",                  "label": "Qwen3.6 Plus"},
+    {"provider": "Qwen", "id": "qwen/qwen3-coder", "label": "Qwen3 Coder"},
+    {"provider": "Qwen", "id": "qwen/qwen3.6-plus", "label": "Qwen3.6 Plus"},
     # xAI
-    {"provider": "xAI",       "id": "x-ai/grok-4.20",                    "label": "Grok 4.20"},
+    {"provider": "xAI", "id": "x-ai/grok-4.20", "label": "Grok 4.20"},
     # Mistral
-    {"provider": "Mistral",   "id": "mistralai/mistral-large-latest",     "label": "Mistral Large"},
+    {
+        "provider": "Mistral",
+        "id": "mistralai/mistral-large-latest",
+        "label": "Mistral Large",
+    },
     # MiniMax
-    {"provider": "MiniMax",   "id": "minimax/MiniMax-M2.7",             "label": "MiniMax M2.7"},
-    {"provider": "MiniMax",   "id": "minimax/MiniMax-M2.7-highspeed",   "label": "MiniMax M2.7 Highspeed"},
+    {"provider": "MiniMax", "id": "minimax/MiniMax-M2.7", "label": "MiniMax M2.7"},
+    {
+        "provider": "MiniMax",
+        "id": "minimax/MiniMax-M2.7-highspeed",
+        "label": "MiniMax M2.7 Highspeed",
+    },
 ]
 
 # Provider display names for known Hermes provider IDs
@@ -489,7 +563,7 @@ _PROVIDER_MODELS = {
     ],
     "openai": [
         {"id": "gpt-5.4-mini", "label": "GPT-5.4 Mini"},
-        {"id": "gpt-5.4",      "label": "GPT-5.4"},
+        {"id": "gpt-5.4", "label": "GPT-5.4"},
     ],
     "openai-codex": [
         {"id": "gpt-5.4", "label": "GPT-5.4"},
@@ -501,7 +575,7 @@ _PROVIDER_MODELS = {
         {"id": "codex-mini-latest", "label": "Codex Mini (latest)"},
     ],
     "google": [
-        {"id": "gemini-3.1-pro-preview",   "label": "Gemini 3.1 Pro Preview"},
+        {"id": "gemini-3.1-pro-preview", "label": "Gemini 3.1 Pro Preview"},
         {"id": "gemini-3-flash-preview", "label": "Gemini 3 Flash Preview"},
     ],
     "deepseek": [
@@ -601,8 +675,8 @@ _PROVIDER_MODELS = {
     ],
     # Qwen (Alibaba) — prefix used in OpenRouter model IDs (qwen/qwen3-coder)
     "qwen": [
-        {"id": "qwen3-coder",   "label": "Qwen3 Coder"},
-        {"id": "qwen3.6-plus",  "label": "Qwen3.6 Plus"},
+        {"id": "qwen3-coder", "label": "Qwen3 Coder"},
+        {"id": "qwen3.6-plus", "label": "Qwen3.6 Plus"},
     ],
     # xAI — prefix used in OpenRouter model IDs (x-ai/grok-4-20)
     "x-ai": [
@@ -712,8 +786,6 @@ def get_available_models() -> dict:
     }
     """
     # Reload config from disk if config.yaml has changed since last load.
-    # This ensures CLI model changes are picked up on page refresh without
-    # a server restart, while avoiding clearing in-memory mocks during tests. (#585)
     try:
         _current_mtime = Path(_get_config_path()).stat().st_mtime
     except OSError:
@@ -723,6 +795,41 @@ def get_available_models() -> dict:
     active_provider = None
     default_model = DEFAULT_MODEL
     groups = []
+
+    # Short-circuit: if the user has configured managed_providers via the
+    # onboarding wizard / providers panel, return ONLY those. Don't auto-detect
+    # any other providers (avoids leaking ambient credentials like AWS Bedrock
+    # creds or stray env vars into the dropdown).
+    managed = cfg.get("managed_providers")
+    if isinstance(managed, list) and managed:
+        managed_active = next(
+            (p for p in managed if isinstance(p, dict) and p.get("active")),
+            managed[0] if isinstance(managed[0], dict) else None,
+        )
+        if isinstance(managed_active, dict):
+            active_provider = (
+                managed_active.get("type") or managed_active.get("id") or "custom"
+            )
+            default_model = managed_active.get("model") or default_model
+        managed_groups = []
+        for p in managed:
+            if not isinstance(p, dict):
+                continue
+            label = p.get("label") or p.get("id") or "Custom"
+            mid = p.get("model")
+            if not mid:
+                continue
+            managed_groups.append(
+                {
+                    "provider": label,
+                    "models": [{"id": mid, "label": mid}],
+                }
+            )
+        return {
+            "active_provider": active_provider,
+            "default_model": default_model,
+            "groups": managed_groups,
+        }
 
     # 1. Read config.yaml model section
     cfg_base_url = ""  # must be defined before conditional blocks (#117)
@@ -787,7 +894,9 @@ def get_available_models() -> dict:
                 if _src == "gh auth token":
                     continue
             except Exception:
-                logger.debug("Failed to get key source for provider %s", _p.get("id", "unknown"))
+                logger.debug(
+                    "Failed to get key source for provider %s", _p.get("id", "unknown")
+                )
             detected_providers.add(_p["id"])
         _hermes_auth_used = True
     except Exception:
@@ -983,7 +1092,10 @@ def get_available_models() -> dict:
                     auto_detected_models.append({"id": model_id, "label": model_name})
                     detected_providers.add(provider.lower())
         except Exception:
-            logger.debug("Custom endpoint unreachable or misconfigured for provider: %s", provider)
+            logger.debug(
+                "Custom endpoint unreachable or misconfigured for provider: %s",
+                provider,
+            )
 
     # 3b. Include models from custom_providers config entries.
     # These are explicitly configured and should always appear even when the
@@ -1027,7 +1139,9 @@ def get_available_models() -> dict:
     # it unless (a) the user explicitly chose 'custom' as their active provider,
     # or (b) the user has custom_providers entries in config.yaml (those models
     # were already added above and should still be shown).
-    _has_custom_providers = isinstance(_custom_providers_cfg, list) and len(_custom_providers_cfg) > 0
+    _has_custom_providers = (
+        isinstance(_custom_providers_cfg, list) and len(_custom_providers_cfg) > 0
+    )
     if active_provider and active_provider != "custom" and not _has_custom_providers:
         detected_providers.discard("custom")
         # Also drop named custom slugs when active provider is a real named one
@@ -1076,7 +1190,7 @@ def get_available_models() -> dict:
                 # via resolve_runtime_provider(requested=provider).
                 # The default provider's models keep bare names for direct API routing.
                 raw_models = _PROVIDER_MODELS.get(pid, [])
-                
+
                 # Override or merge from config.yaml if user specified explicit models
                 provider_cfg = cfg.get("providers", {}).get(pid, {})
                 if isinstance(provider_cfg, dict) and "models" in provider_cfg:
@@ -1132,9 +1246,14 @@ def get_available_models() -> dict:
         # can at least send messages with their current setting. Avoid showing a
         # generic multi-provider list — those models wouldn't be routable anyway.
         if default_model:
-            label = default_model.split("/")[-1] if "/" in default_model else default_model
+            label = (
+                default_model.split("/")[-1] if "/" in default_model else default_model
+            )
             groups.append(
-                {"provider": "Default", "models": [{"id": default_model, "label": label}]}
+                {
+                    "provider": "Default",
+                    "models": [{"id": default_model, "label": label}],
+                }
             )
 
     # Ensure the user's configured default_model always appears in the dropdown.
@@ -1144,7 +1263,9 @@ def get_available_models() -> dict:
     # 'anthropic/claude-opus-4.6' matches 'claude-opus-4.6' and 'claude-sonnet-4-6'
     # matches 'claude-sonnet-4.6' (hermes-agent uses hyphens, webui uses dots).
     if default_model:
-        _norm = lambda mid: (mid.split("/", 1)[-1] if "/" in mid else mid).replace("-", ".")
+        _norm = lambda mid: (mid.split("/", 1)[-1] if "/" in mid else mid).replace(
+            "-", "."
+        )
         all_ids_norm = {_norm(m["id"]) for g in groups for m in g.get("models", [])}
         if _norm(default_model) not in all_ids_norm:
             # Determine which group to inject into. Compare against the
@@ -1186,7 +1307,10 @@ def get_available_models() -> dict:
 
 
 # ── Static file path ─────────────────────────────────────────────────────────
-_INDEX_HTML_PATH = REPO_ROOT / "static" / "index.html"
+# Single-source-of-truth UI = the React SPA built from web/src/ → hermes_cli/web_dist/.
+# webui/static/ (legacy vanilla JS dashboard) is no longer served — repo cleaned up.
+_WEB_DIST_PATH = (REPO_ROOT.parent / "hermes_cli" / "web_dist").resolve()
+_INDEX_HTML_PATH = _WEB_DIST_PATH / "index.html"
 
 # ── Thread synchronisation ───────────────────────────────────────────────────
 LOCK = threading.Lock()
@@ -1232,7 +1356,7 @@ _SETTINGS_DEFAULTS = {
     "show_token_usage": False,  # show input/output token badge below assistant messages
     "show_cli_sessions": False,  # merge CLI sessions from state.db into the sidebar
     "sync_to_insights": False,  # mirror WebUI token usage to state.db for /insights
-    "check_for_updates": True,  # check if webui/agent repos are behind upstream
+    "check_for_updates": False,  # disabled by default for tenant builds — license server controls upgrades
     "theme": "dark",  # light | dark | system
     "skin": "default",  # accent color skin: default | ares | mono | slate | poseidon | sisyphus | charizard
     "language": "zh",  # UI locale code; must match a key in static/i18n.js LOCALES
@@ -1295,11 +1419,7 @@ def _normalize_appearance(theme, skin) -> tuple[str, str]:
     else:
         # Unknown themes used to exist; default to dark so upgrades stay visually stable.
         next_theme, legacy_skin = "dark", "default"
-    next_skin = (
-        raw_skin
-        if raw_skin in _SETTINGS_SKIN_VALUES
-        else legacy_skin
-    )
+    next_skin = raw_skin if raw_skin in _SETTINGS_SKIN_VALUES else legacy_skin
     return next_theme, next_skin
 
 
@@ -1396,7 +1516,9 @@ def save_settings(settings: dict) -> dict:
     theme_value = pending_theme
     skin_value = pending_skin
     if theme_was_explicit and not skin_was_explicit:
-        raw_theme = pending_theme.strip().lower() if isinstance(pending_theme, str) else ""
+        raw_theme = (
+            pending_theme.strip().lower() if isinstance(pending_theme, str) else ""
+        )
         if raw_theme not in _SETTINGS_THEME_VALUES:
             skin_value = None
     current["theme"], current["skin"] = _normalize_appearance(theme_value, skin_value)

@@ -428,27 +428,9 @@ def handle_get(handler, parsed) -> bool:
             content_type="text/html; charset=utf-8",
         )
 
-    if parsed.path == "/login":
-        _settings = load_settings()
-        _bn = _html.escape(_settings.get("bot_name") or "NetClaw")
-        _lang = _settings.get("language", "en")
-        _login_strings = _LOGIN_LOCALE[_resolve_login_locale_key(_lang)]
-        _page = (
-            _LOGIN_PAGE_HTML.replace("{{BOT_NAME}}", _bn)
-            .replace("{{BOT_NAME_INITIAL}}", _bn[0].upper())
-            .replace("{{LANG}}", _html.escape(_login_strings["lang"]))
-            .replace("{{LOGIN_TITLE}}", _html.escape(_login_strings["title"]))
-            .replace("{{LOGIN_SUBTITLE}}", _html.escape(_login_strings["subtitle"]))
-            .replace(
-                "{{LOGIN_PLACEHOLDER}}", _html.escape(_login_strings["placeholder"])
-            )
-            .replace("{{LOGIN_BTN}}", _html.escape(_login_strings["btn"]))
-            .replace("{{LOGIN_INVALID_PW}}", _html.escape(_login_strings["invalid_pw"]))
-            .replace(
-                "{{LOGIN_CONN_FAILED}}", _html.escape(_login_strings["conn_failed"])
-            )
-        )
-        return t(handler, _page, content_type="text/html; charset=utf-8")
+    # /login is now a React SPA route — falls through to the index.html
+    # fallback at the end of handle_get(), which lets React Router render
+    # the new LoginPage component.
 
     if parsed.path == "/api/auth/status":
         from api.auth import is_auth_enabled, parse_cookie, verify_session
@@ -542,6 +524,18 @@ def handle_get(handler, parsed) -> bool:
 
     if parsed.path.startswith("/static/"):
         return _serve_static(handler, parsed)
+
+    # Vite-built React SPA assets — single source of truth for the frontend.
+    # New UI lives in hermes_cli/web_dist/ (built from web/src/), legacy
+    # webui/static/ has been removed.
+    if parsed.path.startswith("/assets/") or parsed.path.startswith("/fonts/"):
+        from api.config import _WEB_DIST_PATH
+
+        return _serve_spa_asset(handler, parsed, "", _WEB_DIST_PATH)
+    if parsed.path == "/favicon.ico":
+        from api.config import _WEB_DIST_PATH
+
+        return _serve_spa_asset(handler, parsed, "/", _WEB_DIST_PATH)
 
     if parsed.path == "/api/session":
         sid = parse_qs(parsed.query).get("session_id", [""])[0]
@@ -835,6 +829,20 @@ def handle_get(handler, parsed) -> bool:
             handler,
             {"name": get_active_profile_name(), "path": str(get_active_hermes_home())},
         )
+
+    # SPA client-side routing fallback — any unmatched non-API GET returns
+    # index.html so React Router can handle it (/social, /wechat, /settings/*, …).
+    if not parsed.path.startswith("/api/"):
+        from api.helpers import t
+
+        try:
+            return t(
+                handler,
+                _INDEX_HTML_PATH.read_text(encoding="utf-8"),
+                content_type="text/html; charset=utf-8",
+            )
+        except (OSError, FileNotFoundError):
+            pass
 
     return False  # 404
 
@@ -1686,28 +1694,44 @@ _TEXT_MIME_TYPES = {
 }
 
 
-def _serve_static(handler, parsed):
-    static_root = (Path(__file__).parent.parent / "static").resolve()
-    # Strip the leading '/static/' prefix, then resolve and sandbox
-    rel = parsed.path[len("/static/") :]
-    static_file = (static_root / rel).resolve()
+def _serve_spa_asset(handler, parsed, prefix: str, asset_root: Path):
+    """Serve a file out of the React SPA dist (web_dist/).
+
+    Used for `/assets/*`, `/fonts/*`, and `/favicon.ico` — Vite-emitted asset
+    paths. Sandboxed to `asset_root`. Falls through with 404 if the path
+    doesn't resolve to a file inside the root.
+    """
+    rel = parsed.path[len(prefix) :] if prefix else parsed.path.lstrip("/")
+    asset_file = (asset_root / rel).resolve()
     try:
-        static_file.relative_to(static_root)
+        asset_file.relative_to(asset_root)
     except ValueError:
         return j(handler, {"error": "not found"}, status=404)
-    if not static_file.exists() or not static_file.is_file():
+    if not asset_file.exists() or not asset_file.is_file():
         return j(handler, {"error": "not found"}, status=404)
-    ext = static_file.suffix.lower()
-    ct = _STATIC_MIME.get(ext.lstrip("."), "text/plain")
+    ext = asset_file.suffix.lower()
+    ct = _STATIC_MIME.get(ext.lstrip("."), "application/octet-stream")
     ct_header = f"{ct}; charset=utf-8" if ct in _TEXT_MIME_TYPES else ct
     handler.send_response(200)
     handler.send_header("Content-Type", ct_header)
-    handler.send_header("Cache-Control", "no-store")
-    raw = static_file.read_bytes()
+    # Vite-built JS/CSS have content-hashed filenames, so we can cache aggressively.
+    if rel.startswith("assets/") or rel.startswith("fonts/"):
+        handler.send_header("Cache-Control", "public, max-age=31536000, immutable")
+    else:
+        handler.send_header("Cache-Control", "no-store")
+    raw = asset_file.read_bytes()
     handler.send_header("Content-Length", str(len(raw)))
     handler.end_headers()
     handler.wfile.write(raw)
     return True
+
+
+def _serve_static(handler, parsed):
+    """Legacy `/static/*` — only kept as a redirect target for any remaining
+    callers; new SPA assets go through `_serve_spa_asset` for `/assets/*`."""
+    return j(
+        handler, {"error": "not found", "hint": "legacy /static/ removed"}, status=404
+    )
 
 
 def _handle_session_export(handler, parsed):

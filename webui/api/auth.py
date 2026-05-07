@@ -3,6 +3,7 @@ Hermes Web UI -- Optional password authentication.
 Off by default. Enable by setting HERMES_WEBUI_PASSWORD env var
 or configuring a password in the Settings panel.
 """
+
 import hashlib
 import hmac
 import http.cookies
@@ -16,12 +17,17 @@ from api.config import STATE_DIR, load_settings
 logger = logging.getLogger(__name__)
 
 # ── Public paths (no auth required) ─────────────────────────────────────────
-PUBLIC_PATHS = frozenset({
-    '/login', '/health', '/favicon.ico',
-    '/api/auth/login', '/api/auth/status',
-})
+PUBLIC_PATHS = frozenset(
+    {
+        "/login",
+        "/health",
+        "/favicon.ico",
+        "/api/auth/login",
+        "/api/auth/status",
+    }
+)
 
-COOKIE_NAME = 'hermes_session'
+COOKIE_NAME = "hermes_session"
 SESSION_TTL = 86400  # 24 hours
 
 # Active sessions: token -> expiry timestamp
@@ -32,6 +38,7 @@ _login_attempts = {}  # ip -> [timestamp, ...]
 _LOGIN_MAX_ATTEMPTS = 5
 _LOGIN_WINDOW = 60  # seconds
 
+
 def _check_login_rate(ip: str) -> bool:
     """Return True if the IP is allowed to attempt login."""
     now = time.time()
@@ -40,6 +47,7 @@ def _check_login_rate(ip: str) -> bool:
     attempts = [t for t in attempts if now - t < _LOGIN_WINDOW]
     _login_attempts[ip] = attempts
     return len(attempts) < _LOGIN_MAX_ATTEMPTS
+
 
 def _record_login_attempt(ip: str) -> None:
     now = time.time()
@@ -50,7 +58,7 @@ def _record_login_attempt(ip: str) -> None:
 
 def _signing_key():
     """Return a random signing key, generating and persisting one on first call."""
-    key_file = STATE_DIR / '.signing_key'
+    key_file = STATE_DIR / ".signing_key"
     if key_file.exists():
         try:
             raw = key_file.read_bytes()
@@ -76,18 +84,18 @@ def _hash_password(password):
     (no format change to settings.json) while replacing the predictable
     STATE_DIR-derived salt from the original implementation."""
     salt = _signing_key()
-    dk = hashlib.pbkdf2_hmac('sha256', password.encode(), salt, 600_000)
+    dk = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, 600_000)
     return dk.hex()
 
 
 def get_password_hash() -> str | None:
     """Return the active password hash, or None if auth is disabled.
     Priority: env var > settings.json."""
-    env_pw = os.getenv('HERMES_WEBUI_PASSWORD', '').strip()
+    env_pw = os.getenv("HERMES_WEBUI_PASSWORD", "").strip()
     if env_pw:
         return _hash_password(env_pw)
     settings = load_settings()
-    return settings.get('password_hash') or None
+    return settings.get("password_hash") or None
 
 
 def is_auth_enabled() -> bool:
@@ -120,11 +128,13 @@ def _prune_expired_sessions():
 
 def verify_session(cookie_value) -> bool:
     """Verify a signed session cookie. Returns True if valid and not expired."""
-    if not cookie_value or '.' not in cookie_value:
+    if not cookie_value or "." not in cookie_value:
         return False
     _prune_expired_sessions()  # lazy cleanup on every verification attempt
-    token, sig = cookie_value.rsplit('.', 1)
-    expected_sig = hmac.new(_signing_key(), token.encode(), hashlib.sha256).hexdigest()[:32]
+    token, sig = cookie_value.rsplit(".", 1)
+    expected_sig = hmac.new(_signing_key(), token.encode(), hashlib.sha256).hexdigest()[
+        :32
+    ]
     if not hmac.compare_digest(sig, expected_sig):
         return False
     expiry = _sessions.get(token)
@@ -136,14 +146,14 @@ def verify_session(cookie_value) -> bool:
 
 def invalidate_session(cookie_value) -> None:
     """Remove a session token."""
-    if cookie_value and '.' in cookie_value:
-        token = cookie_value.rsplit('.', 1)[0]
+    if cookie_value and "." in cookie_value:
+        token = cookie_value.rsplit(".", 1)[0]
         _sessions.pop(token, None)
 
 
 def parse_cookie(handler) -> str | None:
     """Extract the auth cookie from the request headers."""
-    cookie_header = handler.headers.get('Cookie', '')
+    cookie_header = handler.headers.get("Cookie", "")
     if not cookie_header:
         return None
     cookie = http.cookies.SimpleCookie()
@@ -160,22 +170,30 @@ def check_auth(handler, parsed) -> bool:
     If not authorized, sends 401 (API) or 302 redirect (page) and returns False."""
     if not is_auth_enabled():
         return True
-    # Public paths don't require auth
-    if parsed.path in PUBLIC_PATHS or parsed.path.startswith('/static/'):
+    # Public paths don't require auth.
+    # SPA assets (Vite-built) and React Router non-API paths must load without
+    # auth so the login screen itself can render before the user signs in.
+    if parsed.path in PUBLIC_PATHS or parsed.path.startswith("/static/"):
+        return True
+    if parsed.path.startswith("/assets/") or parsed.path.startswith("/fonts/"):
+        return True
+    if not parsed.path.startswith("/api/"):
+        # Any non-API GET (e.g. /, /login, /agent-chat, /wechat) returns the
+        # SPA shell — auth gating happens client-side once the SPA is loaded.
         return True
     # Check session cookie
     cookie_val = parse_cookie(handler)
     if cookie_val and verify_session(cookie_val):
         return True
     # Not authorized
-    if parsed.path.startswith('/api/'):
+    if parsed.path.startswith("/api/"):
         handler.send_response(401)
-        handler.send_header('Content-Type', 'application/json')
+        handler.send_header("Content-Type", "application/json")
         handler.end_headers()
         handler.wfile.write(b'{"error":"Authentication required"}')
     else:
         handler.send_response(302)
-        handler.send_header('Location', '/login')
+        handler.send_header("Location", "/login")
         handler.end_headers()
     return False
 
@@ -184,21 +202,24 @@ def set_auth_cookie(handler, cookie_value) -> None:
     """Set the auth cookie on the response."""
     cookie = http.cookies.SimpleCookie()
     cookie[COOKIE_NAME] = cookie_value
-    cookie[COOKIE_NAME]['httponly'] = True
-    cookie[COOKIE_NAME]['samesite'] = 'Lax'
-    cookie[COOKIE_NAME]['path'] = '/'
-    cookie[COOKIE_NAME]['max-age'] = str(SESSION_TTL)
+    cookie[COOKIE_NAME]["httponly"] = True
+    cookie[COOKIE_NAME]["samesite"] = "Lax"
+    cookie[COOKIE_NAME]["path"] = "/"
+    cookie[COOKIE_NAME]["max-age"] = str(SESSION_TTL)
     # Set Secure flag when connection is HTTPS
-    if getattr(handler.request, 'getpeercert', None) is not None or handler.headers.get('X-Forwarded-Proto', '') == 'https':
-        cookie[COOKIE_NAME]['secure'] = True
-    handler.send_header('Set-Cookie', cookie[COOKIE_NAME].OutputString())
+    if (
+        getattr(handler.request, "getpeercert", None) is not None
+        or handler.headers.get("X-Forwarded-Proto", "") == "https"
+    ):
+        cookie[COOKIE_NAME]["secure"] = True
+    handler.send_header("Set-Cookie", cookie[COOKIE_NAME].OutputString())
 
 
 def clear_auth_cookie(handler) -> None:
     """Clear the auth cookie on the response."""
     cookie = http.cookies.SimpleCookie()
-    cookie[COOKIE_NAME] = ''
-    cookie[COOKIE_NAME]['httponly'] = True
-    cookie[COOKIE_NAME]['path'] = '/'
-    cookie[COOKIE_NAME]['max-age'] = '0'
-    handler.send_header('Set-Cookie', cookie[COOKIE_NAME].OutputString())
+    cookie[COOKIE_NAME] = ""
+    cookie[COOKIE_NAME]["httponly"] = True
+    cookie[COOKIE_NAME]["path"] = "/"
+    cookie[COOKIE_NAME]["max-age"] = "0"
+    handler.send_header("Set-Cookie", cookie[COOKIE_NAME].OutputString())

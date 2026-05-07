@@ -13,7 +13,8 @@ block_cipher = None
 HERMES_ROOT = Path(SPECPATH).resolve().parent.parent  # .../hermes-agent
 APP_NAME = "NetClaw Agent"
 BUNDLE_ID = "com.netclaw.agent"
-VERSION = "0.10.0"
+import os as _os
+VERSION = _os.environ.get("VERSION") or _os.environ.get("AGENT_VERSION") or "0.10.0"
 
 # Allow PyInstaller's analyser to find webui/api.* and webui/server.py
 import sys as _sys
@@ -89,7 +90,22 @@ hiddenimports = [
     "hermes_cli.config",
     "hermes_cli.auth",
     "hermes_cli.commands",
+    "hermes_cli.employee_auth",
+    "hermes_cli.static_updater",
     "agent",
+    "agent.mcp_publish",
+    "agent.mcp_publish.server",
+    "agent.mcp_intercept",
+    "agent.mcp_intercept.server",
+    "agent.mcp_wechat",
+    "agent.mcp_wechat.server",
+    "agent.mcp_crm",
+    "agent.mcp_crm.server",
+    "agent.mcp_browser",
+    "agent.mcp_browser.cdp",
+    "playwright",
+    "playwright.async_api",
+    "playwright._impl",
     "tools",
     "gateway.status",
     "plugins",
@@ -104,13 +120,21 @@ hiddenimports = [
 
 # Include everything under hermes_cli / agent / tools / gateway / plugins
 # that wouldn't otherwise be picked up by static analysis.
-from PyInstaller.utils.hooks import collect_submodules
+from PyInstaller.utils.hooks import collect_submodules, collect_data_files
 
 for pkg in ("hermes_cli", "agent", "tools", "gateway", "plugins", "acp_adapter", "cron", "pyarmor_runtime_000000", "api"):
     try:
         hiddenimports.extend(collect_submodules(pkg))
     except Exception:
         pass
+
+# Playwright — bundle the Python lib (NOT the Chromium binary; we use CDP
+# to attach to the user's existing Chrome, saving ~150MB).
+try:
+    hiddenimports.extend(collect_submodules("playwright"))
+    datas.extend(collect_data_files("playwright"))
+except Exception:
+    pass
 
 # Top-level webui server module (imported as `import server` after we
 # prepend webui/ to sys.path at runtime).
