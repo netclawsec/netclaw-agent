@@ -1,7 +1,7 @@
 """NetClaw Agent license client — activation, verification, offline grace.
 
-Talks to the NetClaw License Server hosted at ``https://license.netclawsec.com``
-(override with ``NETCLAW_LICENSE_SERVER``).
+Talks to the NetClaw License Server hosted at
+``https://license.netclawsec.com.cn`` (override with ``NETCLAW_LICENSE_SERVER``).
 
 State file layout at ``{NetClaw home}/license.json``::
 
@@ -39,7 +39,7 @@ import urllib.request
 from hermes_constants import get_hermes_home
 
 
-DEFAULT_SERVER = "https://license.netclawsec.com"
+DEFAULT_SERVER = "https://license.netclawsec.com.cn"
 DEFAULT_OFFLINE_GRACE_DAYS = 7
 REQUEST_TIMEOUT_SECONDS = 10
 STATE_VERSION = 1

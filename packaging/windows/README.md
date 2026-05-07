@@ -86,4 +86,4 @@ After install, the user runs:
 netclaw license activate NCLW-XXXXX-XXXXX-XXXXX-XXXXX
 ```
 
-The CLI talks to `https://license.netclawsec.com` (or the `NETCLAW_LICENSE_SERVER` override) and stores the activation token at `%USERPROFILE%\.netclaw\license.json`.
+The CLI talks to `https://license.netclawsec.com.cn` (or the `NETCLAW_LICENSE_SERVER` override) and stores the activation token at `%USERPROFILE%\.netclaw\license.json`.
