@@ -4,7 +4,6 @@ import { MainShell } from "@/components/shell/MainShell";
 
 // New product pages
 import LoginPage from "@/pages/LoginPage";
-import CommandCenter from "@/pages/CommandCenter";
 import SocialPage from "@/pages/SocialPage";
 import VideoStudioPage from "@/pages/VideoStudioPage";
 import ImageStudioPage from "@/pages/ImageStudioPage";
@@ -15,9 +14,8 @@ import SettingsPage from "@/pages/SettingsPage";
 import AccountPage from "@/pages/AccountPage";
 import SettingsGeneralPage from "@/pages/settings/GeneralPage";
 import SettingsModelsPage from "@/pages/settings/ModelsPage";
-import SettingsPluginsPage from "@/pages/settings/PluginsPage";
 
-// Existing ops pages — relocated under /settings/runtime/* (Phase 9 consolidation)
+// Existing ops pages — relocated under /settings/runtime/*
 import StatusPage from "@/pages/StatusPage";
 import ConfigPage from "@/pages/ConfigPage";
 import EnvPage from "@/pages/EnvPage";
@@ -41,10 +39,11 @@ export default function App() {
   }
 
   // Main app: MainShell wraps every primary product route.
+  // Landing route '/' redirects to AI 员工 (the headline product surface).
   return (
     <MainShell>
       <Routes>
-        <Route path="/" element={<CommandCenter />} />
+        <Route path="/" element={<Navigate to="/agent-chat" replace />} />
         <Route path="/social" element={<SocialPage />} />
         <Route path="/studio/video" element={<VideoStudioPage />} />
         <Route path="/studio/image" element={<ImageStudioPage />} />
@@ -52,12 +51,14 @@ export default function App() {
         <Route path="/agent-chat" element={<AgentChatPage />} />
         <Route path="/analytics" element={<AnalyticsNewPage />} />
 
-        {/* Settings hub — section index + nested ops 8 pages */}
+        {/* Settings hub — section index + nested ops pages */}
         <Route path="/settings" element={<SettingsPage />}>
           <Route path="account" element={<AccountPage />} />
           <Route path="general" element={<SettingsGeneralPage />} />
           <Route path="models" element={<SettingsModelsPage />} />
-          <Route path="plugins" element={<SettingsPluginsPage />} />
+          {/* "插件" tab was unused on the desktop install path — replaced
+               by direct link to /settings/runtime/skills (技能). */}
+          <Route path="skills" element={<Navigate to="/settings/runtime/skills" replace />} />
           <Route path="runtime" element={<Navigate to="/settings/runtime/status" replace />} />
           <Route path="runtime/status" element={<StatusPage />} />
           <Route path="runtime/sessions" element={<SessionsPage />} />
@@ -69,7 +70,7 @@ export default function App() {
           <Route path="runtime/analytics" element={<AnalyticsPage />} />
         </Route>
 
-        {/* Legacy URLs — redirect into Settings runtime tabs (preserve external links) */}
+        {/* Legacy URLs — redirect into Settings runtime tabs */}
         <Route path="/sessions" element={<Navigate to="/settings/runtime/sessions" replace />} />
         <Route path="/logs" element={<Navigate to="/settings/runtime/logs" replace />} />
         <Route path="/cron" element={<Navigate to="/settings/runtime/cron" replace />} />
@@ -77,7 +78,7 @@ export default function App() {
         <Route path="/config" element={<Navigate to="/settings/runtime/config" replace />} />
         <Route path="/env" element={<Navigate to="/settings/runtime/env" replace />} />
 
-        {/* Plugin routes — preserved at top level */}
+        {/* Dashboard plugin routes — third-party extensions registered at runtime */}
         {plugins.map(({ manifest, component: PluginComponent }) => (
           <Route
             key={manifest.name}
@@ -86,7 +87,7 @@ export default function App() {
           />
         ))}
 
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<Navigate to="/agent-chat" replace />} />
       </Routes>
     </MainShell>
   );

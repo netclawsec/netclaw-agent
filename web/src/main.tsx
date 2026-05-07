@@ -5,6 +5,11 @@ import App from "./App";
 import { I18nProvider } from "./i18n";
 import { ThemeProvider } from "./themes";
 import { exposePluginSDK } from "./plugins";
+import { bootstrapFontPrefs } from "./lib/font-prefs";
+
+// Apply user's saved font / size choice before React renders so the page
+// never flashes a different font on first paint.
+bootstrapFontPrefs();
 
 // Expose the plugin SDK before rendering so plugins loaded via <script>
 // can access React, components, etc. immediately.

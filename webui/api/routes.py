@@ -534,6 +534,12 @@ def handle_get(handler, parsed) -> bool:
     if parsed.path == "/favicon.ico":
         return _serve_spa_asset(handler, parsed, "/", _WEB_DIST_PATH)
 
+    # Top-level static assets shipped in web_dist root (logo, robots, etc.).
+    # The Vite build emits these as `public/*` → `web_dist/*` (not under
+    # /assets/), so they need their own match arm.
+    if parsed.path in ("/logo.png", "/logo.svg", "/robots.txt"):
+        return _serve_spa_asset(handler, parsed, "/", _WEB_DIST_PATH)
+
     # ── SPA-compat adapters (for routes the new React SPA expects) ──────────
     # The new UI was designed against hermes_cli/web_server.py (FastAPI).
     # webui/server.py uses different naming for some endpoints, so we add

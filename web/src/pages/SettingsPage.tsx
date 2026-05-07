@@ -2,7 +2,7 @@ import { NavLink, Outlet, Navigate, useLocation } from "react-router-dom";
 import {
   Activity, MessageSquare, FileText, Clock, Package,
   Settings as SettingsIcon, KeyRound, Database, User,
-  Sliders, Bot, PlugZap,
+  Sliders, Bot,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -21,7 +21,7 @@ const SECTION_TABS = [
   { path: "/settings/account", label: "账户", icon: User },
   { path: "/settings/general", label: "通用", icon: Sliders },
   { path: "/settings/models", label: "模型 & 厂商", icon: Bot },
-  { path: "/settings/plugins", label: "插件", icon: PlugZap },
+  { path: "/settings/runtime/skills", label: "技能", icon: Package },
   { path: "/settings/runtime", label: "运行时", icon: Database },
 ];
 

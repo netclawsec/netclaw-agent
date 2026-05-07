@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from "react";
 import { useLocation } from "react-router-dom";
 import {
-  Activity, BarChart3, FileVideo, Image as ImageIcon,
+  BarChart3, FileVideo, Image as ImageIcon,
   MessagesSquare, Settings, Share2, MessageCircle,
 } from "lucide-react";
 import { useTheme } from "@/themes";
@@ -30,12 +30,12 @@ export function MainShell({ children }: MainShellProps) {
 
   const navItems: SidebarItem[] = useMemo(
     () => [
-      { path: "/", label: t.app.nav.commandCenter, icon: Activity },
+      // AI 员工 (the agent chat workspace) is the headline product entry — first.
+      { path: "/agent-chat", label: t.app.nav.agentChat, icon: MessagesSquare },
       { path: "/social", label: t.app.nav.social, icon: Share2 },
       { path: "/studio/video", label: t.app.nav.studioVideo, icon: FileVideo },
       { path: "/studio/image", label: t.app.nav.studioImage, icon: ImageIcon },
-      { path: "/wechat", label: "微信回复 / WeChat Reply", icon: MessageCircle },
-      { path: "/agent-chat", label: t.app.nav.agentChat, icon: MessagesSquare },
+      { path: "/wechat", label: t.app.nav.wechatReply, icon: MessageCircle },
       { path: "/analytics", label: t.app.nav.analytics, icon: BarChart3 },
       { path: "/settings", label: t.app.nav.settings, icon: Settings },
     ],
@@ -44,7 +44,7 @@ export function MainShell({ children }: MainShellProps) {
 
   const meta = useMemo<RouteMeta>(() => {
     const p = location.pathname;
-    if (p === "/") return { title: t.app.nav.commandCenter, subtitle: "Command Center", breadcrumbs: [{ label: t.app.nav.commandCenter }] };
+    if (p === "/") return { title: t.app.nav.agentChat, subtitle: "AI Employee", breadcrumbs: [{ label: t.app.nav.agentChat }] };
     if (p.startsWith("/social")) return { title: t.app.nav.social, subtitle: "Social Media Auto-Publish", breadcrumbs: [{ label: t.app.nav.social }] };
     if (p.startsWith("/studio/video")) return { title: t.app.nav.studioVideo, subtitle: "AI Video Studio", breadcrumbs: [{ label: "Studio", href: "/" }, { label: t.app.nav.studioVideo }] };
     if (p.startsWith("/studio/image")) return { title: t.app.nav.studioImage, subtitle: "AI Image Studio", breadcrumbs: [{ label: "Studio", href: "/" }, { label: t.app.nav.studioImage }] };
@@ -77,8 +77,8 @@ export function MainShell({ children }: MainShellProps) {
 
   return (
     <AppShell
-      brand="Netclaw"
-      brandSubtitle="AI Marketing Agent"
+      brand="网钳科技"
+      brandSubtitle="AI 员工 · 营销工作平台"
       sidebarItems={navItems}
       user={{ name: "Operator", subtitle: "Super Admin" }}
       topbarTitle={meta.title}

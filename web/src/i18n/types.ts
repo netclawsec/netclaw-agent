@@ -68,6 +68,7 @@ export interface Translations {
       social: string;
       studioVideo: string;
       studioImage: string;
+      wechatReply: string;
       agentChat: string;
       settings: string;
     };

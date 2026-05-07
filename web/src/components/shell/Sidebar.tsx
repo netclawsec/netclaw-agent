@@ -28,12 +28,29 @@ export function Sidebar({ brand, brandSubtitle, items, user, footer, className }
       )}
     >
       <div className="flex items-center gap-2.5 px-4 py-4 border-b border-border/60">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground font-display text-sm font-bold">
-          {brand.slice(0, 2).toUpperCase()}
-        </div>
-        <div className="leading-tight">
-          <div className="font-display text-sm font-semibold">{brand}</div>
-          {brandSubtitle && <div className="text-[0.65rem] text-muted-foreground">{brandSubtitle}</div>}
+        <img
+          src="/logo.png"
+          alt={brand}
+          className="h-9 w-9 rounded-lg shrink-0 object-contain"
+          onError={(e) => {
+            // Fallback to 2-letter abbreviation if logo asset is missing.
+            const img = e.currentTarget;
+            const parent = img.parentElement;
+            if (!parent) return;
+            img.style.display = "none";
+            if (!parent.querySelector("[data-fallback]")) {
+              const fb = document.createElement("div");
+              fb.setAttribute("data-fallback", "1");
+              fb.className =
+                "flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground font-display text-sm font-bold shrink-0";
+              fb.textContent = brand.slice(0, 2).toUpperCase();
+              parent.insertBefore(fb, img);
+            }
+          }}
+        />
+        <div className="leading-tight min-w-0">
+          <div className="font-display text-sm font-semibold truncate">{brand}</div>
+          {brandSubtitle && <div className="text-[0.65rem] text-muted-foreground truncate">{brandSubtitle}</div>}
         </div>
       </div>
 

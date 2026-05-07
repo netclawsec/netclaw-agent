@@ -100,46 +100,48 @@ export default function LoginPage() {
         <div className="absolute inset-0 opacity-15 [background:radial-gradient(circle_at_20%_30%,white_0%,transparent_45%),radial-gradient(circle_at_80%_70%,white_0%,transparent_40%)]" />
         <div className="relative">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/15 backdrop-blur-sm">
-              <Sparkles className="h-6 w-6" />
-            </div>
+            <img
+              src="/logo.png"
+              alt="网钳科技"
+              className="h-12 w-12 rounded-xl bg-white/15 backdrop-blur-sm p-1.5 object-contain"
+            />
             <div className="leading-tight">
-              <div className="font-display text-base font-bold">Netclaw Agent</div>
-              <div className="text-[0.7rem] opacity-70">AI Marketing Agent · 工作平台</div>
+              <div className="font-display text-base font-bold">网钳科技</div>
+              <div className="text-[0.7rem] opacity-70">AI 员工 · 营销工作平台</div>
             </div>
           </div>
         </div>
 
         <div className="relative space-y-3">
-          <SplashCard icon={Shield} title="单点登录 / SSO" desc="Single Sign-On 支持企业 IdP 接入" />
-          <SplashCard icon={Wifi} title="网络状态" desc="License Server 直连 / 链路稳定" />
-          <SplashCard icon={HelpCircle} title="帮助中心" desc="部署 / FAQ / 客户成功支持" />
+          <SplashCard icon={Shield} title="单点登录" desc="支持企业 SSO / IdP 接入" />
+          <SplashCard icon={Wifi} title="网络状态" desc="License Server 直连，链路稳定" />
+          <SplashCard icon={HelpCircle} title="帮助中心" desc="部署文档 · FAQ · 客户成功" />
         </div>
 
-        <div className="relative text-[0.65rem] opacity-60">v0.10 · © Netclaw Agent</div>
+        <div className="relative text-[0.65rem] opacity-60">v0.10 · © 网钳科技</div>
       </div>
 
       {/* Middle form */}
       <div className="flex items-center justify-center p-5 lg:p-8 border-r border-border">
         <div className="w-full max-w-md space-y-4">
           <div className="space-y-1">
-            <h2 className="font-display text-2xl font-bold">登录 / Sign In</h2>
+            <h2 className="font-display text-2xl font-bold">登录</h2>
             <p className="text-sm text-muted-foreground">
-              登录以管理你的 Netclaw Agent 工作平台
+              登录以管理你的网钳 AI 员工工作平台
             </p>
           </div>
 
           <form onSubmit={onSubmit} className="space-y-3">
             <Field
               icon={Building2}
-              placeholder="选择或搜索组织 / Select or search organization"
+              placeholder="选择或搜索组织"
               value={organization}
               onChange={setOrganization}
               autoComplete="organization"
             />
             <Field
               icon={Mail}
-              placeholder="邮箱 / 手机号 · Email or Phone"
+              placeholder="邮箱 / 手机号"
               value={username}
               onChange={setUsername}
               autoComplete="username"
@@ -147,7 +149,7 @@ export default function LoginPage() {
             <div className="space-y-1">
               <Field
                 icon={Lock}
-                placeholder="密码 / 验证码 · Password or Code"
+                placeholder="密码 / 验证码"
                 value={password}
                 onChange={setPassword}
                 type="password"
@@ -155,7 +157,7 @@ export default function LoginPage() {
               />
               <div className="flex items-center justify-end">
                 <a className="text-[0.7rem] text-muted-foreground hover:text-primary cursor-default">
-                  忘记密码 / Forgot password?
+                  忘记密码？
                 </a>
               </div>
             </div>
@@ -168,7 +170,7 @@ export default function LoginPage() {
                   onChange={(e) => setRemember(e.target.checked)}
                   className="h-3.5 w-3.5 accent-primary"
                 />
-                记住账号 / Remember
+                记住账号
               </label>
               <span className="text-[0.7rem] flex items-center gap-1">
                 <Eye className="h-3 w-3" />
@@ -186,14 +188,14 @@ export default function LoginPage() {
             <Button type="submit" className="w-full rounded-md" disabled={submitting}>
               {submitting ? "登录中..." : (
                 <>
-                  登录 / Sign In
+                  登录
                   <ArrowRight className="h-3.5 w-3.5" />
                 </>
               )}
             </Button>
 
             <Button type="button" variant="outline" className="w-full rounded-md" disabled>
-              <Shield className="h-3.5 w-3.5" /> 使用 SSO 登录 / Sign in with SSO
+              <Shield className="h-3.5 w-3.5" /> 使用 SSO 登录
             </Button>
 
             <label className="flex items-center gap-2 text-xs text-muted-foreground pt-1">
@@ -204,12 +206,12 @@ export default function LoginPage() {
                 className="h-3.5 w-3.5 accent-primary"
               />
               <ShieldCheck className="h-3 w-3" />
-              信任此设备 30 天 · Trust device for 30 days
+              信任此设备 30 天
             </label>
           </form>
 
           <p className="text-[0.65rem] text-muted-foreground">
-            POST /api/employee/login（接 license server 多租户后台 · license.netclawsec.com.cn）
+            license.netclawsec.com.cn · 多租户认证
           </p>
         </div>
       </div>
