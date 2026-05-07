@@ -534,6 +534,137 @@ def handle_get(handler, parsed) -> bool:
     if parsed.path == "/favicon.ico":
         return _serve_spa_asset(handler, parsed, "/", _WEB_DIST_PATH)
 
+    # ── SPA-compat adapters (for routes the new React SPA expects) ──────────
+    # The new UI was designed against hermes_cli/web_server.py (FastAPI).
+    # webui/server.py uses different naming for some endpoints, so we add
+    # thin adapters here so the SPA renders without 404s. Each adapter returns
+    # a minimal-but-valid shape; real data flows through where webui has it.
+    if parsed.path == "/api/status":
+        try:
+            from api.gateway_watcher import get_status_snapshot
+
+            snap = get_status_snapshot()
+        except Exception:
+            snap = {}
+        with LOCK:
+            active = sum(
+                1 for s in SESSIONS.values() if not getattr(s, "ended_at", None)
+            )
+        return j(
+            handler,
+            {
+                "active_sessions": active,
+                "config_path": "",
+                "config_version": 1,
+                "env_path": "",
+                "gateway_exit_reason": snap.get("exit_reason"),
+                "gateway_health_url": snap.get("health_url"),
+                "gateway_pid": snap.get("pid"),
+                "gateway_platforms": snap.get("platforms", {}),
+                "gateway_running": bool(snap.get("running", False)),
+                "gateway_state": snap.get("state"),
+                "gateway_updated_at": snap.get("updated_at"),
+                "hermes_home": str(STATE_DIR),
+                "latest_config_version": 1,
+                "release_date": "2026-05-07",
+                "version": "0.10.0",
+            },
+        )
+
+    if parsed.path == "/api/analytics/usage":
+        # Legacy webui doesn't have a token-usage analytics rollup yet.
+        # Return an empty-but-valid shape so the SPA renders the empty state.
+        return j(
+            handler,
+            {
+                "daily": [],
+                "by_model": [],
+                "totals": {
+                    "total_input": 0,
+                    "total_output": 0,
+                    "total_cache_read": 0,
+                    "total_reasoning": 0,
+                    "total_estimated_cost": 0.0,
+                    "total_actual_cost": 0.0,
+                    "total_sessions": 0,
+                },
+            },
+        )
+
+    if parsed.path == "/api/config":
+        return j(handler, load_settings())
+
+    if parsed.path == "/api/config/defaults":
+        return j(handler, {})
+
+    if parsed.path == "/api/config/schema":
+        return j(handler, {"fields": {}, "category_order": []})
+
+    if parsed.path == "/api/cron/jobs":
+        # Forward to legacy /api/crons handler shape, normalized for SPA.
+        try:
+            from api.cron_persist import list_jobs as _list_jobs
+
+            jobs = _list_jobs()
+        except Exception:
+            jobs = []
+        return j(handler, jobs)
+
+    if parsed.path == "/api/dashboard/themes":
+        return j(
+            handler,
+            {
+                "themes": [
+                    {
+                        "name": "netclaw-light",
+                        "label": "NetClaw Light",
+                        "description": "默认主题",
+                    },
+                    {
+                        "name": "netclaw-dark",
+                        "label": "NetClaw Dark",
+                        "description": "深色",
+                    },
+                ],
+                "active": load_settings().get("theme", "netclaw-light"),
+            },
+        )
+
+    if parsed.path == "/api/dashboard/plugins":
+        return j(handler, [])
+
+    if parsed.path == "/api/model/info":
+        settings = load_settings()
+        return j(
+            handler,
+            {
+                "model": settings.get("model") or DEFAULT_MODEL,
+                "provider": settings.get("provider") or "auto",
+                "auto_context_length": 128000,
+                "config_context_length": 0,
+                "effective_context_length": 128000,
+                "capabilities": {
+                    "supports_tools": True,
+                    "supports_vision": False,
+                    "supports_reasoning": False,
+                    "context_window": 128000,
+                    "max_output_tokens": 8192,
+                },
+            },
+        )
+
+    if parsed.path == "/api/tools/toolsets":
+        return j(handler, [])
+
+    if parsed.path == "/api/providers/oauth":
+        return j(handler, {"providers": []})
+
+    if parsed.path == "/api/env":
+        return j(handler, {})
+
+    if parsed.path == "/api/logs":
+        return j(handler, {"file": "agent.log", "lines": []})
+
     if parsed.path == "/api/session":
         sid = parse_qs(parsed.query).get("session_id", [""])[0]
         if not sid:
