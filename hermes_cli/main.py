@@ -5816,11 +5816,14 @@ For more help on a command:
     whatsapp_parser.set_defaults(func=cmd_whatsapp)
 
     # =========================================================================
-    # login command
+    # provider-login command
+    # (Renamed from `login` since multi-tenant employee `login` (registered via
+    # _employee_cli.register_subparser above) now owns that name. This one is
+    # the OAuth-device flow for Nous / openai-codex inference providers.)
     # =========================================================================
     login_parser = subparsers.add_parser(
-        "login",
-        help="Authenticate with an inference provider",
+        "provider-login",
+        help="Authenticate with an inference provider (Nous / openai-codex OAuth)",
         description="Run OAuth device authorization flow for Hermes CLI",
     )
     login_parser.add_argument(
@@ -5862,11 +5865,13 @@ For more help on a command:
     login_parser.set_defaults(func=cmd_login)
 
     # =========================================================================
-    # logout command
+    # provider-logout command
+    # (Renamed from `logout` — the multi-tenant employee `logout` registered via
+    # _employee_cli.register_subparser above now owns that name.)
     # =========================================================================
     logout_parser = subparsers.add_parser(
-        "logout",
-        help="Clear authentication for an inference provider",
+        "provider-logout",
+        help="Clear authentication for an inference provider (Nous / openai-codex)",
         description="Remove stored credentials and reset provider config",
     )
     logout_parser.add_argument(
@@ -6613,9 +6618,10 @@ Examples:
             print("\n  ✓ Memory provider: built-in only")
             print("  Saved to config.yaml\n")
         elif sub == "reset":
-            from hermes_constants import get_hermes_home, display_hermes_home
+            from hermes_constants import display_hermes_home
+            from hermes_cli.employee_auth import employee_data_root
 
-            mem_dir = get_hermes_home() / "memories"
+            mem_dir = employee_data_root() / "memories"
             target = getattr(args, "target", "all")
             files_to_reset = []
             if target in ("all", "memory"):
