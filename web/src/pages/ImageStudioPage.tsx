@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { Image as ImageIcon, Search, Sparkles, Send, Loader2 } from "lucide-react";
+import { Image as ImageIcon, Search, Sparkles, Send, Loader2, Square, X } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useSkillRun } from "@/lib/skill-run";
 
 interface SkillSummary {
   name: string;
@@ -34,8 +35,9 @@ export default function ImageStudioPage() {
   const [prompt, setPrompt] = useState("");
   const [size, setSize] = useState("1024x1024");
   const [style, setStyle] = useState(STYLES[0]);
-  const [submitting, setSubmitting] = useState(false);
   const [filter, setFilter] = useState("");
+  const [selected, setSelected] = useState<SkillSummary | null>(null);
+  const runner = useSkillRun();
 
   useEffect(() => {
     fetch("/api/skills")
@@ -54,10 +56,10 @@ export default function ImageStudioPage() {
   });
 
   function generate() {
-    if (!prompt.trim()) return;
-    setSubmitting(true);
-    // TODO: real wiring to /api/session/new + /api/chat/stream with selected skill
-    setTimeout(() => setSubmitting(false), 800);
+    if (!prompt.trim() || runner.running) return;
+    const skillHint = selected ? `请使用 skill「${selected.name}」生成图像。` : "请生成图像。";
+    const message = `${skillHint}\n\n要求：${prompt.trim()}\n尺寸：${size}\n风格：${style}`;
+    runner.start(message);
   }
 
   return (
@@ -74,6 +76,7 @@ export default function ImageStudioPage() {
               placeholder="例：紫色城市夜景，霓虹灯反射，赛博朋克风格…"
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
+              disabled={runner.running}
             />
             <div className="space-y-1.5">
               <div className="text-xs text-muted-foreground">尺寸 / Size</div>
@@ -84,6 +87,7 @@ export default function ImageStudioPage() {
                     size="sm"
                     variant={size === s.value ? "default" : "outline"}
                     onClick={() => setSize(s.value)}
+                    disabled={runner.running}
                   >
                     {s.label}
                   </Button>
@@ -98,30 +102,85 @@ export default function ImageStudioPage() {
                     key={s}
                     variant={style === s ? "default" : "outline"}
                     className="cursor-pointer"
-                    onClick={() => setStyle(s)}
+                    onClick={() => !runner.running && setStyle(s)}
                   >
                     {s}
                   </Badge>
                 ))}
               </div>
             </div>
-            <Button className="w-full" onClick={generate} disabled={!prompt.trim() || submitting}>
-              {submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-              生成
-            </Button>
+            {selected && (
+              <div className="flex items-center gap-2 text-xs">
+                <span className="text-muted-foreground">Skill:</span>
+                <Badge variant="default" className="font-mono">{selected.name}</Badge>
+                <Button size="sm" variant="ghost" className="h-6 px-1" onClick={() => setSelected(null)} disabled={runner.running}>
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
+            )}
+            {runner.running ? (
+              <Button className="w-full" variant="outline" onClick={runner.cancel}>
+                <Square className="h-3.5 w-3.5" /> 停止
+              </Button>
+            ) : (
+              <Button className="w-full" onClick={generate} disabled={!prompt.trim()}>
+                <Send className="h-3.5 w-3.5" /> 生成
+              </Button>
+            )}
             <p className="text-[0.7rem] text-muted-foreground">
-              当前为前端 stub。下版接 /api/session/new + /api/chat/stream，从 skill 流回的附件渲染到右侧。
+              接 /api/session/new + /api/chat/start + SSE。Agent 输出里出现的 .png/.jpg 路径会自动渲染到右侧。
             </p>
           </CardContent>
         </Card>
       </div>
 
       <div className="space-y-4">
+        {(runner.output || runner.running || runner.error) && (
+          <Card className="rounded-xl">
+            <CardHeader className="flex-row items-center justify-between">
+              <div>
+                <CardTitle>生成结果</CardTitle>
+                <CardDescription>
+                  {runner.running ? "Agent 正在执行…" : runner.sessionId ? `已完成 · session ${runner.sessionId.slice(0, 8)}` : "等待"}
+                </CardDescription>
+              </div>
+              {runner.running && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {runner.error && (
+                <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                  执行失败：{runner.error}
+                </div>
+              )}
+              {runner.media.length > 0 && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {runner.media.map((m) => (
+                    <div key={m.url} className="rounded-lg border border-border bg-card overflow-hidden">
+                      {m.kind === "video" ? (
+                        <video src={m.url} controls className="w-full aspect-square bg-black" />
+                      ) : (
+                        <img src={m.url} alt={m.rawPath} className="w-full aspect-square object-cover bg-muted" />
+                      )}
+                      <div className="px-2 py-1 text-[0.65rem] text-muted-foreground truncate">{m.rawPath}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {runner.output && (
+                <details className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs">
+                  <summary className="cursor-pointer text-muted-foreground">Agent 输出（点开查看）</summary>
+                  <pre className="mt-2 whitespace-pre-wrap break-words font-mono text-foreground">{runner.output}</pre>
+                </details>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
         <Card className="rounded-xl">
           <CardHeader className="flex-row items-center justify-between">
             <div>
               <CardTitle>图像 Skill 库</CardTitle>
-              <CardDescription>从 /api/skills 自动识别图像类技能</CardDescription>
+              <CardDescription>从 /api/skills 自动识别图像类技能 · 选中后生成时会带 skill 名</CardDescription>
             </div>
             <div className="relative w-56">
               <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -146,7 +205,13 @@ export default function ImageStudioPage() {
                   <button
                     key={s.name}
                     type="button"
-                    className="rounded-xl border border-border bg-card hover:border-primary/40 p-3 text-left transition-colors"
+                    onClick={() => setSelected(selected?.name === s.name ? null : s)}
+                    disabled={runner.running}
+                    className={`rounded-xl border p-3 text-left transition-colors ${
+                      selected?.name === s.name
+                        ? "border-primary bg-primary/5"
+                        : "border-border bg-card hover:border-primary/40"
+                    } ${runner.running ? "opacity-60 cursor-not-allowed" : ""}`}
                   >
                     <div className="aspect-square rounded-lg bg-gradient-to-br from-primary/20 to-accent flex items-center justify-center mb-2">
                       <ImageIcon className="h-6 w-6 text-primary/70" />
@@ -157,16 +222,6 @@ export default function ImageStudioPage() {
                 ))}
               </div>
             )}
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-xl">
-          <CardHeader>
-            <CardTitle>历史记录</CardTitle>
-            <CardDescription>本会话生成过的图像（待接入 sessions）</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <EmptyState icon={ImageIcon} title="无历史" description="生成首张图像后会出现在这里" />
           </CardContent>
         </Card>
       </div>
