@@ -2,7 +2,7 @@
 
 ## 入口
 
-http://120.55.247.72/admin/login.html （备案后切 `https://license.netclawsec.com.cn/admin/login.html`）
+https://license.netclawsec.com.cn/admin/login.html （legacy `http://120.55.247.72/admin/login.html` 仍可用，将在 Phase C 后下线）
 
 ## 角色
 
@@ -67,7 +67,7 @@ POST  /api/tenant/licenses/:license_key/unbind      {fingerprint?}  // 不带 fp
 GET   /api/tenant/seats                             → 跨 license 的员工目录
 ```
 
-CSRF：所有非 GET/HEAD 调用必须带 `Origin: http://120.55.247.72`（或 `ALLOWED_ORIGINS` 列出的 host）。
+CSRF：所有非 GET/HEAD 调用必须带 `Origin: https://license.netclawsec.com.cn`（或 `ALLOWED_ORIGINS` 列出的其他 host，如 legacy `http://120.55.247.72`）。
 
 ## 运维
 
