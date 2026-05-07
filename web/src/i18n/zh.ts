@@ -61,6 +61,12 @@ export const zh: Translations = {
       skills: "技能",
       config: "配置",
       keys: "密钥",
+      commandCenter: "工作台",
+      social: "社交发布",
+      studioVideo: "AI 视频工作室",
+      studioImage: "AI 图像工作室",
+      agentChat: "Agent 对话",
+      settings: "设置",
     },
   },
 

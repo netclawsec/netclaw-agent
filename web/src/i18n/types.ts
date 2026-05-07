@@ -63,6 +63,13 @@ export interface Translations {
       skills: string;
       config: string;
       keys: string;
+      // New product nav (post-2026-05 UI rebuild)
+      commandCenter: string;
+      social: string;
+      studioVideo: string;
+      studioImage: string;
+      agentChat: string;
+      settings: string;
     };
   };
 

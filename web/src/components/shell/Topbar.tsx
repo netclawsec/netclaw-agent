@@ -1,4 +1,4 @@
-import { Bell, Search } from "lucide-react";
+import { Bell, Menu, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Avatar } from "@/components/ui/avatar";
 
@@ -10,6 +10,7 @@ interface TopbarProps {
   notifications?: number;
   user?: { name: string; subtitle?: string; avatarSrc?: string };
   rightSlot?: React.ReactNode;
+  onMenuClick?: () => void;
   className?: string;
 }
 
@@ -21,15 +22,26 @@ export function Topbar({
   notifications,
   user,
   rightSlot,
+  onMenuClick,
   className,
 }: TopbarProps) {
   return (
     <header
       className={cn(
-        "flex h-14 shrink-0 items-center gap-4 border-b border-border bg-card/80 px-5 backdrop-blur-sm",
+        "flex h-14 shrink-0 items-center gap-3 border-b border-border bg-card/80 px-3 sm:px-5 backdrop-blur-sm",
         className,
       )}
     >
+      {onMenuClick && (
+        <button
+          type="button"
+          aria-label="Toggle menu"
+          onClick={onMenuClick}
+          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground lg:hidden"
+        >
+          <Menu className="h-4 w-4" />
+        </button>
+      )}
       <div className="min-w-0 flex-1">
         {breadcrumbs && breadcrumbs.length > 0 && (
           <nav className="flex items-center gap-1.5 text-[0.7rem] text-muted-foreground">

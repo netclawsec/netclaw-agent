@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Send, MessageSquare, Loader2, Bot, User, Wrench } from "lucide-react";
 import { api, type SessionInfo, type SessionMessage } from "@/lib/api";
-import { runChat } from "@/lib/chat";
+import { runChat, type RunChatHandle } from "@/lib/chat";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -9,14 +9,26 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
+interface ChatMessage extends SessionMessage {
+  /** Stable client-side id so React's reconciliation doesn't reuse the wrong DOM node mid-stream. */
+  _key?: string;
+}
+
+let _msgCounter = 0;
+function newKey(): string {
+  _msgCounter += 1;
+  return `m_${Date.now()}_${_msgCounter}`;
+}
+
 export default function AgentChatPage() {
   const [sessions, setSessions] = useState<SessionInfo[] | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<SessionMessage[] | null>(null);
+  const [messages, setMessages] = useState<ChatMessage[] | null>(null);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const chatHandleRef = useRef<RunChatHandle | null>(null);
 
   useEffect(() => {
     api.getSessions(20, 0)
@@ -36,7 +48,9 @@ export default function AgentChatPage() {
     setMessages(null);
     api.getSessionMessages(activeId)
       .then((r) => {
-        if (!cancelled) setMessages(r.messages);
+        if (!cancelled) {
+          setMessages(r.messages.map((m) => ({ ...m, _key: newKey() })));
+        }
       })
       .catch((e) => {
         if (!cancelled) setError(String(e));
@@ -45,6 +59,15 @@ export default function AgentChatPage() {
       cancelled = true;
     };
   }, [activeId]);
+
+  // Cancel any in-flight stream when the page unmounts (avoids setState on dead component).
+  useEffect(() => {
+    return () => {
+      const h = chatHandleRef.current;
+      chatHandleRef.current = null;
+      if (h) void h.cancel();
+    };
+  }, []);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -56,9 +79,18 @@ export default function AgentChatPage() {
     setError(null);
     const text = draft;
     setDraft("");
-    setMessages((cur) => [...(cur ?? []), { role: "user", content: text }, { role: "assistant", content: "" }]);
+    setMessages((cur) => [
+      ...(cur ?? []),
+      { role: "user", content: text, _key: newKey() },
+      { role: "assistant", content: "", _key: newKey() },
+    ]);
 
-    runChat({
+    // Cancel any prior in-flight run before starting a new one.
+    const prev = chatHandleRef.current;
+    chatHandleRef.current = null;
+    if (prev) void prev.cancel();
+
+    chatHandleRef.current = runChat({
       sessionId: activeId ?? undefined,
       message: text,
       onToken: (_tok, total) => {
@@ -75,10 +107,12 @@ export default function AgentChatPage() {
       onDone: (_total, sid) => {
         if (!activeId) setActiveId(sid);
         setSending(false);
+        chatHandleRef.current = null;
       },
       onError: (err) => {
         setError(err.message);
         setSending(false);
+        chatHandleRef.current = null;
       },
     });
   }
@@ -145,7 +179,7 @@ export default function AgentChatPage() {
           ) : messages.length === 0 ? (
             <EmptyState icon={MessageSquare} title={activeId ? "对话为空" : "新对话"} description="输入消息开始" />
           ) : (
-            messages.map((m, i) => <MessageBubble key={i} m={m} />)
+            messages.map((m, i) => <MessageBubble key={m._key ?? `${m.role}-${i}`} m={m} />)
           )}
           <div ref={messagesEndRef} />
         </CardContent>
@@ -174,7 +208,7 @@ export default function AgentChatPage() {
   );
 }
 
-function MessageBubble({ m }: { m: SessionMessage }) {
+function MessageBubble({ m }: { m: ChatMessage }) {
   const isUser = m.role === "user";
   const isTool = m.role === "tool";
   return (

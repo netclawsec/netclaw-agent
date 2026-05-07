@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useFocusTrap } from "@/lib/focus-trap";
 
 interface DrawerProps {
   open: boolean;
@@ -13,6 +14,7 @@ interface DrawerProps {
 
 export function Drawer({ open, onClose, side = "right", title, children, className }: DrawerProps) {
   const panelRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(panelRef, open);
 
   useEffect(() => {
     if (!open) return;

@@ -1,40 +1,19 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useLocation } from "react-router-dom";
 import {
   Activity, BarChart3, FileVideo, Image as ImageIcon,
   MessagesSquare, Settings, Share2,
 } from "lucide-react";
 import { useTheme } from "@/themes";
+import { useI18n } from "@/i18n";
 import { AppShell } from "@/components/shell/AppShell";
 import type { SidebarItem } from "@/components/shell/Sidebar";
-
-export const MAIN_NAV: SidebarItem[] = [
-  { path: "/", label: "工作台 / Command Center", icon: Activity },
-  { path: "/social", label: "社交发布 / 抖音 · 小红书 · 视频号", icon: Share2 },
-  { path: "/studio/video", label: "AI 视频工作室", icon: FileVideo },
-  { path: "/studio/image", label: "AI 图像工作室", icon: ImageIcon },
-  { path: "/agent-chat", label: "Agent Chat", icon: MessagesSquare },
-  { path: "/analytics", label: "数据分析", icon: BarChart3 },
-  { path: "/settings", label: "设置", icon: Settings },
-];
 
 interface RouteMeta {
   title: string;
   subtitle?: string;
   breadcrumbs?: { label: string; href?: string }[];
 }
-
-const ROUTE_META: Array<{ match: (path: string) => boolean; meta: RouteMeta }> = [
-  { match: (p) => p === "/", meta: { title: "工作台", subtitle: "Command Center", breadcrumbs: [{ label: "工作台" }] } },
-  { match: (p) => p.startsWith("/social"), meta: { title: "社交媒体自动发布", subtitle: "Social Media Auto-Publish", breadcrumbs: [{ label: "社交发布" }] } },
-  { match: (p) => p.startsWith("/studio/video"), meta: { title: "AI 视频工作室", subtitle: "AI Video Studio", breadcrumbs: [{ label: "工作室", href: "/" }, { label: "视频" }] } },
-  { match: (p) => p.startsWith("/studio/image"), meta: { title: "AI 图像工作室", subtitle: "AI Image Studio", breadcrumbs: [{ label: "工作室", href: "/" }, { label: "图像" }] } },
-  { match: (p) => p.startsWith("/agent-chat"), meta: { title: "Agent Chat", subtitle: "Agent Chat Workspace", breadcrumbs: [{ label: "Agent" }] } },
-  { match: (p) => p.startsWith("/analytics"), meta: { title: "数据分析", subtitle: "Analytics", breadcrumbs: [{ label: "分析" }] } },
-  { match: (p) => p.startsWith("/settings"), meta: { title: "设置", subtitle: "Settings", breadcrumbs: [{ label: "设置" }] } },
-];
-
-const FALLBACK_META: RouteMeta = { title: "Netclaw Agent", subtitle: "" };
 
 interface MainShellProps {
   children: React.ReactNode;
@@ -47,7 +26,43 @@ interface MainShellProps {
 export function MainShell({ children }: MainShellProps) {
   const location = useLocation();
   const { setTheme, themeName } = useTheme();
-  const meta = ROUTE_META.find((m) => m.match(location.pathname))?.meta ?? FALLBACK_META;
+  const { t } = useI18n();
+
+  const navItems: SidebarItem[] = useMemo(
+    () => [
+      { path: "/", label: t.app.nav.commandCenter, icon: Activity },
+      { path: "/social", label: t.app.nav.social, icon: Share2 },
+      { path: "/studio/video", label: t.app.nav.studioVideo, icon: FileVideo },
+      { path: "/studio/image", label: t.app.nav.studioImage, icon: ImageIcon },
+      { path: "/agent-chat", label: t.app.nav.agentChat, icon: MessagesSquare },
+      { path: "/analytics", label: t.app.nav.analytics, icon: BarChart3 },
+      { path: "/settings", label: t.app.nav.settings, icon: Settings },
+    ],
+    [t],
+  );
+
+  const meta = useMemo<RouteMeta>(() => {
+    const p = location.pathname;
+    if (p === "/") return { title: t.app.nav.commandCenter, subtitle: "Command Center", breadcrumbs: [{ label: t.app.nav.commandCenter }] };
+    if (p.startsWith("/social")) return { title: t.app.nav.social, subtitle: "Social Media Auto-Publish", breadcrumbs: [{ label: t.app.nav.social }] };
+    if (p.startsWith("/studio/video")) return { title: t.app.nav.studioVideo, subtitle: "AI Video Studio", breadcrumbs: [{ label: "Studio", href: "/" }, { label: t.app.nav.studioVideo }] };
+    if (p.startsWith("/studio/image")) return { title: t.app.nav.studioImage, subtitle: "AI Image Studio", breadcrumbs: [{ label: "Studio", href: "/" }, { label: t.app.nav.studioImage }] };
+    if (p.startsWith("/agent-chat")) return { title: t.app.nav.agentChat, subtitle: "Agent Chat Workspace", breadcrumbs: [{ label: t.app.nav.agentChat }] };
+    if (p.startsWith("/analytics")) return { title: t.app.nav.analytics, subtitle: "Analytics", breadcrumbs: [{ label: t.app.nav.analytics }] };
+    if (p.startsWith("/settings/runtime")) {
+      const tab = p.replace("/settings/runtime/", "");
+      return {
+        title: t.app.nav.settings,
+        subtitle: `Runtime · ${tab || "—"}`,
+        breadcrumbs: [{ label: t.app.nav.settings, href: "/settings" }, { label: "Runtime", href: "/settings/runtime" }, { label: tab || "—" }],
+      };
+    }
+    if (p.startsWith("/settings")) {
+      const tab = p.split("/")[2] || "account";
+      return { title: t.app.nav.settings, subtitle: tab, breadcrumbs: [{ label: t.app.nav.settings, href: "/settings" }, { label: tab }] };
+    }
+    return { title: "Netclaw Agent" };
+  }, [location.pathname, t]);
 
   useEffect(() => {
     const previous = themeName;
@@ -62,7 +77,7 @@ export function MainShell({ children }: MainShellProps) {
     <AppShell
       brand="Netclaw"
       brandSubtitle="AI Marketing Agent"
-      sidebarItems={MAIN_NAV}
+      sidebarItems={navItems}
       user={{ name: "Operator", subtitle: "Super Admin" }}
       topbarTitle={meta.title}
       topbarSubtitle={meta.subtitle}

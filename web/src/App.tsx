@@ -12,6 +12,9 @@ import AgentChatPage from "@/pages/AgentChatPage";
 import AnalyticsNewPage from "@/pages/AnalyticsNewPage";
 import SettingsPage from "@/pages/SettingsPage";
 import AccountPage from "@/pages/AccountPage";
+import SettingsGeneralPage from "@/pages/settings/GeneralPage";
+import SettingsModelsPage from "@/pages/settings/ModelsPage";
+import SettingsPluginsPage from "@/pages/settings/PluginsPage";
 
 // Existing ops pages — relocated under /settings/runtime/* (Phase 9 consolidation)
 import StatusPage from "@/pages/StatusPage";
@@ -50,6 +53,9 @@ export default function App() {
         {/* Settings hub — section index + nested ops 8 pages */}
         <Route path="/settings" element={<SettingsPage />}>
           <Route path="account" element={<AccountPage />} />
+          <Route path="general" element={<SettingsGeneralPage />} />
+          <Route path="models" element={<SettingsModelsPage />} />
+          <Route path="plugins" element={<SettingsPluginsPage />} />
           <Route path="runtime" element={<Navigate to="/settings/runtime/status" replace />} />
           <Route path="runtime/status" element={<StatusPage />} />
           <Route path="runtime/sessions" element={<SessionsPage />} />

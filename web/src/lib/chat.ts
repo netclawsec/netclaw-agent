@@ -107,21 +107,31 @@ export function runChat(opts: RunChatOptions): RunChatHandle {
       const decoder = new TextDecoder();
       let buffer = "";
       let totalText = "";
-      while (!cancelled) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        let idx;
-        while ((idx = buffer.indexOf("\n\n")) !== -1) {
-          const event = buffer.slice(0, idx);
-          buffer = buffer.slice(idx + 2);
-          const token = extractStreamText(event);
-          if (!token) continue;
-          totalText += token;
-          opts.onToken?.(token, totalText);
+      try {
+        while (!cancelled) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          let idx;
+          while ((idx = buffer.indexOf("\n\n")) !== -1) {
+            const event = buffer.slice(0, idx);
+            buffer = buffer.slice(idx + 2);
+            const token = extractStreamText(event);
+            if (!token) continue;
+            totalText += token;
+            opts.onToken?.(token, totalText);
+          }
+        }
+      } finally {
+        // Release the underlying reader so the connection can close cleanly,
+        // even if cancelled mid-stream or the user navigated away.
+        try {
+          await reader.cancel();
+        } catch {
+          // best effort
         }
       }
-      opts.onDone?.(totalText, sessionId, stream_id);
+      if (!cancelled) opts.onDone?.(totalText, sessionId, stream_id);
     } catch (e) {
       const err = e instanceof Error ? e : new Error(String(e));
       streamIdReject(err);

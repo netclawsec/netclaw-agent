@@ -61,6 +61,12 @@ export const en: Translations = {
       skills: "Skills",
       config: "Config",
       keys: "Keys",
+      commandCenter: "Command Center",
+      social: "Social",
+      studioVideo: "Video Studio",
+      studioImage: "Image Studio",
+      agentChat: "Agent Chat",
+      settings: "Settings",
     },
   },
 

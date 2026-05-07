@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { runChat, type RunChatHandle } from "./chat";
 
 export interface MediaItem {
@@ -9,9 +9,24 @@ export interface MediaItem {
 }
 
 const MEDIA_EXT = ["mp4", "webm", "mov", "png", "jpg", "jpeg", "gif", "webp"];
-// Match absolute POSIX paths or ~/... paths ending in a media extension. The
-// match runs over assistant text, so we keep it conservative — quoted/whitespace
-// boundaries on either side of the path.
+// Conservative matcher — only paths beginning with one of:
+//   /tmp/, /var/folders/  (system tmp on macOS / linux)
+//   ~/.netclaw/, ~/.hermes/  (agent home)
+//   /Users/<name>/.netclaw/, /Users/<name>/.hermes/  (absolute form of the same)
+// Any other absolute path is ignored client-side so we never construct a
+// /api/media?path=... URL pointing at e.g. /etc/passwd or ~/.ssh/. The backend
+// independently enforces allowed_roots; this is a defense-in-depth.
+const ALLOWED_PREFIXES = [
+  /^\/tmp\//,
+  /^\/var\/folders\//,
+  /^~\/\.netclaw\//,
+  /^~\/\.hermes\//,
+  /^\/Users\/[^/]+\/\.netclaw\//,
+  /^\/Users\/[^/]+\/\.hermes\//,
+  /^\/home\/[^/]+\/\.netclaw\//,
+  /^\/home\/[^/]+\/\.hermes\//,
+];
+
 const PATH_REGEX = new RegExp(
   `(~?/[^\\s'"<>\`)\\]]+\\.(?:${MEDIA_EXT.join("|")}))`,
   "gi",
@@ -19,6 +34,10 @@ const PATH_REGEX = new RegExp(
 
 function isVideoExt(ext: string): boolean {
   return ["mp4", "webm", "mov"].includes(ext);
+}
+
+function isAllowedPath(raw: string): boolean {
+  return ALLOWED_PREFIXES.some((re) => re.test(raw));
 }
 
 export function extractMediaFromText(text: string): MediaItem[] {
@@ -29,6 +48,7 @@ export function extractMediaFromText(text: string): MediaItem[] {
     const raw = match[1];
     if (seen.has(raw)) continue;
     seen.add(raw);
+    if (!isAllowedPath(raw)) continue;
     const ext = (raw.match(/\.([a-z0-9]+)$/i)?.[1] || "").toLowerCase();
     out.push({
       rawPath: raw,
@@ -110,6 +130,15 @@ export function useSkillRun(): UseSkillRunResult {
     },
     [],
   );
+
+  // Cancel any in-flight stream when the consumer unmounts.
+  useEffect(() => {
+    return () => {
+      const h = handleRef.current;
+      handleRef.current = null;
+      if (h) void h.cancel();
+    };
+  }, []);
 
   const media = extractMediaFromText(output);
   return { output, running, error, sessionId, media, start, cancel, reset };

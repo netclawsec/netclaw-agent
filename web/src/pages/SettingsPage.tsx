@@ -1,8 +1,8 @@
-import { useMemo } from "react";
 import { NavLink, Outlet, Navigate, useLocation } from "react-router-dom";
 import {
   Activity, MessageSquare, FileText, Clock, Package,
   Settings as SettingsIcon, KeyRound, Database, User,
+  Sliders, Bot, PlugZap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -19,13 +19,15 @@ const RUNTIME_TABS = [
 
 const SECTION_TABS = [
   { path: "/settings/account", label: "账户", icon: User },
+  { path: "/settings/general", label: "通用", icon: Sliders },
+  { path: "/settings/models", label: "模型 & 厂商", icon: Bot },
+  { path: "/settings/plugins", label: "插件", icon: PlugZap },
   { path: "/settings/runtime", label: "运行时", icon: Database },
 ];
 
 export default function SettingsPage() {
   const location = useLocation();
   const inRuntime = location.pathname.startsWith("/settings/runtime");
-  const tabs = useMemo(() => (inRuntime ? RUNTIME_TABS : SECTION_TABS), [inRuntime]);
 
   // Bare /settings — redirect into account.
   if (location.pathname === "/settings") {
@@ -61,7 +63,7 @@ export default function SettingsPage() {
             <div className="px-2.5 py-1 text-[0.65rem] uppercase tracking-[0.1em] text-muted-foreground">
               运维子页 / Runtime Tabs
             </div>
-            {tabs.map(({ path, label, icon: Icon }) => {
+            {RUNTIME_TABS.map(({ path, label, icon: Icon }) => {
               const active = location.pathname === path;
               return (
                 <NavLink
