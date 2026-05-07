@@ -17,28 +17,30 @@
 @font-face { font-family: "Mondwest"; src: url("/fonts/Mondwest-Regular.woff2") format("woff2"); font-weight: 400; font-display: swap; }
 
 @theme {
-  /* ---- Hermes palette (dark teal, from live site) ---- */
-  --color-background: #041C1C;
-  --color-foreground: #ffe6cb;
-  --color-card: #062424;
-  --color-card-foreground: #ffe6cb;
-  --color-primary: #ffe6cb;
-  --color-primary-foreground: #041C1C;
-  --color-secondary: #0a2e2e;
-  --color-secondary-foreground: #ffe6cb;
-  --color-muted: #083030;
-  --color-muted-foreground: #8aaa9a;
-  --color-accent: #0c3838;
-  --color-accent-foreground: #ffe6cb;
-  --color-destructive: #fb2c36;
-  --color-destructive-foreground: #fff;
-  --color-success: #4ade80;
-  --color-warning: #ffbd38;
-  --color-border: color-mix(in srgb, #ffe6cb 15%, transparent);
-  --color-input: color-mix(in srgb, #ffe6cb 15%, transparent);
-  --color-ring: #ffe6cb;
-  --color-popover: #062424;
-  --color-popover-foreground: #ffe6cb;
+  /* ---- NetClaw Light palette (matches netclawLightTheme in themes/presets.ts).
+     Used as the first-paint default so the SPA never flashes the legacy dark
+     teal Hermes palette before ThemeProvider boots. ---- */
+  --color-background: #F8FAFC;
+  --color-foreground: #1F2937;
+  --color-card: #FFFFFF;
+  --color-card-foreground: #1F2937;
+  --color-primary: #7C3AED;
+  --color-primary-foreground: #FFFFFF;
+  --color-secondary: #F5F3FF;
+  --color-secondary-foreground: #4C1D95;
+  --color-muted: #F3F4F6;
+  --color-muted-foreground: #6B7280;
+  --color-accent: #EDE9FE;
+  --color-accent-foreground: #4C1D95;
+  --color-destructive: #EF4444;
+  --color-destructive-foreground: #FFFFFF;
+  --color-success: #10B981;
+  --color-warning: #F59E0B;
+  --color-border: #E5E7EB;
+  --color-input: #E5E7EB;
+  --color-ring: #7C3AED;
+  --color-popover: #FFFFFF;
+  --color-popover-foreground: #1F2937;
 
   /* ---- Font stacks ---- */
   --font-sans: "Mondwest", Arial, sans-serif;
