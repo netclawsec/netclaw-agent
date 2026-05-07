@@ -9,6 +9,7 @@ import SocialPage from "@/pages/SocialPage";
 import VideoStudioPage from "@/pages/VideoStudioPage";
 import ImageStudioPage from "@/pages/ImageStudioPage";
 import AgentChatPage from "@/pages/AgentChatPage";
+import WechatPage from "@/pages/WechatPage";
 import AnalyticsNewPage from "@/pages/AnalyticsNewPage";
 import SettingsPage from "@/pages/SettingsPage";
 import AccountPage from "@/pages/AccountPage";
@@ -47,6 +48,7 @@ export default function App() {
         <Route path="/social" element={<SocialPage />} />
         <Route path="/studio/video" element={<VideoStudioPage />} />
         <Route path="/studio/image" element={<ImageStudioPage />} />
+        <Route path="/wechat" element={<WechatPage />} />
         <Route path="/agent-chat" element={<AgentChatPage />} />
         <Route path="/analytics" element={<AnalyticsNewPage />} />
 

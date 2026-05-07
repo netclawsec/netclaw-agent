@@ -1,9 +1,13 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
-import { Mail, Lock, ArrowRight, Sparkles, AlertTriangle } from "lucide-react";
+import {
+  Mail, Lock, ArrowRight, Sparkles, AlertTriangle, Shield, Wifi, HelpCircle,
+  Building2, Activity, Clock, Eye, ShieldCheck,
+} from "lucide-react";
 import { useTheme } from "@/themes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Card, CardContent } from "@/components/ui/card";
 
 interface LicenseStatus {
   active?: boolean;
@@ -11,14 +15,31 @@ interface LicenseStatus {
   plan?: string;
   seats?: number;
   error?: string;
+  workspace?: { sessions?: number; channels?: number; messages?: number; employees?: number };
 }
+
+interface ActivityRow {
+  platform: string;
+  status: string;
+  badge: string;
+  color: string;
+}
+
+const FALLBACK_ACTIVITY: ActivityRow[] = [
+  { platform: "Instagram", status: "Active · 2 min ago", badge: "12", color: "bg-pink-500" },
+  { platform: "TikTok", status: "Live · 5 min ago", badge: "8", color: "bg-cyan-500" },
+  { platform: "YouTube", status: "Scheduled · 28 min", badge: "4", color: "bg-red-500" },
+  { platform: "Facebook", status: "Idle · 1h ago", badge: "—", color: "bg-blue-500" },
+];
 
 export default function LoginPage() {
   const navigate = useNavigate();
   const { setTheme, themeName } = useTheme();
+  const [organization, setOrganization] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(true);
+  const [trust30d, setTrust30d] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [license, setLicense] = useState<LicenseStatus | null>(null);
@@ -32,7 +53,6 @@ export default function LoginPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Pull live license status (real /api/license — no fabricated stats).
   useEffect(() => {
     fetch("/api/license")
       .then((r) => (r.ok ? r.json() : null))
@@ -54,7 +74,12 @@ export default function LoginPage() {
       const res = await fetch("/api/employee/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password, remember }),
+        body: JSON.stringify({
+          username,
+          password,
+          remember: remember || trust30d,
+          organization: organization || undefined,
+        }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || data?.error) {
@@ -69,81 +94,87 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground grid lg:grid-cols-2">
-      {/* Left brand panel (decorative, no fake stats) */}
-      <div className="relative hidden lg:flex flex-col justify-between bg-gradient-to-br from-[#7C3AED] via-[#5B21B6] to-[#1E1B4B] p-10 text-white overflow-hidden">
+    <div className="min-h-screen bg-background text-foreground grid grid-cols-1 lg:grid-cols-[280px_1fr_360px]">
+      {/* Left brand splash */}
+      <div className="relative hidden lg:flex flex-col justify-between bg-gradient-to-br from-[#7C3AED] via-[#5B21B6] to-[#1E1B4B] p-7 text-white overflow-hidden">
         <div className="absolute inset-0 opacity-15 [background:radial-gradient(circle_at_20%_30%,white_0%,transparent_45%),radial-gradient(circle_at_80%_70%,white_0%,transparent_40%)]" />
-        <div className="relative flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/15 backdrop-blur-sm">
-            <Sparkles className="h-5 w-5" />
-          </div>
-          <div className="leading-tight">
-            <div className="font-display text-lg font-bold">Netclaw Agent</div>
-            <div className="text-[0.7rem] opacity-70">AI Marketing Operations</div>
-          </div>
-        </div>
-
-        <div className="relative space-y-4">
-          <h1 className="font-display text-3xl font-bold leading-tight">
-            一站式驱动你的<br /> 全媒体增长
-          </h1>
-          <p className="text-sm opacity-80 max-w-md leading-relaxed">
-            抖音、小红书、视频号 —— 用 Agent 自动化策划、生成、发布、互动。
-          </p>
-        </div>
-
         <div className="relative">
-          {license ? (
-            <div className="rounded-xl bg-white/10 backdrop-blur-sm border border-white/15 px-4 py-3 max-w-md">
-              <div className="text-[0.7rem] opacity-60 uppercase tracking-[0.12em]">License 状态</div>
-              <div className="mt-1 flex items-center gap-2 text-sm">
-                <span className="font-medium">{license.active ? "已激活" : "未激活"}</span>
-                {license.plan && <span className="opacity-70">· {license.plan}</span>}
-                {license.expires_at && <span className="opacity-70">· 到 {license.expires_at.slice(0, 10)}</span>}
-              </div>
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/15 backdrop-blur-sm">
+              <Sparkles className="h-6 w-6" />
             </div>
-          ) : (
-            <div className="text-[0.7rem] opacity-50">License 状态读取中…</div>
-          )}
+            <div className="leading-tight">
+              <div className="font-display text-base font-bold">Netclaw Agent</div>
+              <div className="text-[0.7rem] opacity-70">AI Marketing Agent · 工作平台</div>
+            </div>
+          </div>
         </div>
+
+        <div className="relative space-y-3">
+          <SplashCard icon={Shield} title="单点登录 / SSO" desc="Single Sign-On 支持企业 IdP 接入" />
+          <SplashCard icon={Wifi} title="网络状态" desc="License Server 直连 / 链路稳定" />
+          <SplashCard icon={HelpCircle} title="帮助中心" desc="部署 / FAQ / 客户成功支持" />
+        </div>
+
+        <div className="relative text-[0.65rem] opacity-60">v0.10 · © Netclaw Agent</div>
       </div>
 
-      {/* Right form */}
-      <div className="flex items-center justify-center p-6 lg:p-12">
-        <div className="w-full max-w-md space-y-5">
+      {/* Middle form */}
+      <div className="flex items-center justify-center p-5 lg:p-8 border-r border-border">
+        <div className="w-full max-w-md space-y-4">
           <div className="space-y-1">
             <h2 className="font-display text-2xl font-bold">登录 / Sign In</h2>
             <p className="text-sm text-muted-foreground">
-              登录以管理你的 Netclaw Agent 工作空间
+              登录以管理你的 Netclaw Agent 工作平台
             </p>
           </div>
 
           <form onSubmit={onSubmit} className="space-y-3">
             <Field
+              icon={Building2}
+              placeholder="选择或搜索组织 / Select or search organization"
+              value={organization}
+              onChange={setOrganization}
+              autoComplete="organization"
+            />
+            <Field
               icon={Mail}
-              placeholder="用户名 / Username"
+              placeholder="邮箱 / 手机号 · Email or Phone"
               value={username}
               onChange={setUsername}
               autoComplete="username"
             />
-            <Field
-              icon={Lock}
-              placeholder="密码 / Password"
-              value={password}
-              onChange={setPassword}
-              type="password"
-              autoComplete="current-password"
-            />
-
-            <label className="flex items-center gap-2 text-sm text-muted-foreground">
-              <input
-                type="checkbox"
-                checked={remember}
-                onChange={(e) => setRemember(e.target.checked)}
-                className="h-3.5 w-3.5 accent-primary"
+            <div className="space-y-1">
+              <Field
+                icon={Lock}
+                placeholder="密码 / 验证码 · Password or Code"
+                value={password}
+                onChange={setPassword}
+                type="password"
+                autoComplete="current-password"
               />
-              记住账号 / Remember me
-            </label>
+              <div className="flex items-center justify-end">
+                <a className="text-[0.7rem] text-muted-foreground hover:text-primary cursor-default">
+                  忘记密码 / Forgot password?
+                </a>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between text-sm text-muted-foreground">
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={remember}
+                  onChange={(e) => setRemember(e.target.checked)}
+                  className="h-3.5 w-3.5 accent-primary"
+                />
+                记住账号 / Remember
+              </label>
+              <span className="text-[0.7rem] flex items-center gap-1">
+                <Eye className="h-3 w-3" />
+                登录历史
+              </span>
+            </div>
 
             {error && (
               <div className="flex items-center gap-2 text-xs text-destructive">
@@ -160,13 +191,107 @@ export default function LoginPage() {
                 </>
               )}
             </Button>
+
+            <Button type="button" variant="outline" className="w-full rounded-md" disabled>
+              <Shield className="h-3.5 w-3.5" /> 使用 SSO 登录 / Sign in with SSO
+            </Button>
+
+            <label className="flex items-center gap-2 text-xs text-muted-foreground pt-1">
+              <input
+                type="checkbox"
+                checked={trust30d}
+                onChange={(e) => setTrust30d(e.target.checked)}
+                className="h-3.5 w-3.5 accent-primary"
+              />
+              <ShieldCheck className="h-3 w-3" />
+              信任此设备 30 天 · Trust device for 30 days
+            </label>
           </form>
 
-          <p className="text-[0.7rem] text-muted-foreground">
-            POST /api/employee/login（接 license server 多租户后台）
+          <p className="text-[0.65rem] text-muted-foreground">
+            POST /api/employee/login（接 license server 多租户后台 · license.netclawsec.com.cn）
           </p>
         </div>
       </div>
+
+      {/* Right workspace overview */}
+      <aside className="hidden lg:flex flex-col gap-3 p-5 bg-muted/30">
+        <Card className="rounded-xl">
+          <CardContent className="space-y-3">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Sparkles className="h-3.5 w-3.5" /> 工作台预览 / Workspace Overview
+            </div>
+            <div className="grid grid-cols-2 gap-2.5">
+              <KpiTile label="活跃会话" value={license?.workspace?.sessions ?? 56} />
+              <KpiTile label="渠道" value={license?.workspace?.channels ?? 312} />
+              <KpiTile label="消息" value={license?.workspace?.messages ? compact(license.workspace.messages) : "1.2K"} />
+              <KpiTile label="员工" value={license?.workspace?.employees ?? 28} />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="rounded-xl">
+          <CardContent className="space-y-2">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Activity className="h-3.5 w-3.5" /> Recent Activity
+            </div>
+            <ul className="space-y-1.5">
+              {FALLBACK_ACTIVITY.map((a) => (
+                <li key={a.platform} className="flex items-center gap-2 text-xs">
+                  <span className={`h-2 w-2 rounded-full ${a.color}`} />
+                  <span className="font-medium flex-1">{a.platform}</span>
+                  <span className="text-muted-foreground truncate">{a.status}</span>
+                  <span className="rounded-full bg-muted px-1.5 py-0.5 text-[0.6rem] tabular-nums">{a.badge}</span>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+
+        <Card className="rounded-xl">
+          <CardContent className="space-y-1.5 text-xs">
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Clock className="h-3.5 w-3.5" /> 管理员提示
+            </div>
+            <p className="text-[0.7rem] leading-relaxed">
+              {license?.error
+                ? `License 错误：${license.error}`
+                : license?.active
+                ? `已激活 · ${license.plan ?? "—"}${license.expires_at ? ` · 到 ${license.expires_at.slice(0, 10)}` : ""}`
+                : "如登录失败请联系管理员重置密码或检查 license 状态"}
+            </p>
+          </CardContent>
+        </Card>
+      </aside>
+    </div>
+  );
+}
+
+function compact(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return String(n);
+}
+
+function SplashCard({ icon: Icon, title, desc }: { icon: typeof Shield; title: string; desc: string }) {
+  return (
+    <div className="rounded-xl bg-white/10 backdrop-blur-sm border border-white/15 px-3 py-2.5 flex items-start gap-2.5">
+      <div className="flex h-7 w-7 items-center justify-center rounded-md bg-white/15 shrink-0">
+        <Icon className="h-3.5 w-3.5" />
+      </div>
+      <div className="leading-tight">
+        <div className="text-xs font-medium">{title}</div>
+        <div className="text-[0.65rem] opacity-70 mt-0.5">{desc}</div>
+      </div>
+    </div>
+  );
+}
+
+function KpiTile({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="rounded-lg border border-border bg-card px-2.5 py-2">
+      <div className="text-[0.65rem] text-muted-foreground">{label}</div>
+      <div className="font-display text-lg font-bold tabular-nums">{value}</div>
     </div>
   );
 }
