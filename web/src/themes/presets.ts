@@ -218,6 +218,41 @@ export const roseTheme: DashboardTheme = {
   },
 };
 
+export const netclawLightTheme: DashboardTheme = {
+  name: "netclaw-light",
+  label: "NetClaw Light",
+  description: "Light theme matching the NetClaw Agent Mac mockups (purple + lavender)",
+  colors: {
+    background: "#F8FAFC",
+    foreground: "#1F2937",
+    card: "#FFFFFF",
+    "card-foreground": "#1F2937",
+    primary: "#7C3AED",
+    "primary-foreground": "#FFFFFF",
+    secondary: "#F5F3FF",
+    "secondary-foreground": "#4C1D95",
+    muted: "#F3F4F6",
+    "muted-foreground": "#6B7280",
+    accent: "#EDE9FE",
+    "accent-foreground": "#4C1D95",
+    destructive: "#EF4444",
+    "destructive-foreground": "#FFFFFF",
+    success: "#10B981",
+    warning: "#F59E0B",
+    border: "#E5E7EB",
+    input: "#E5E7EB",
+    ring: "#7C3AED",
+    popover: "#FFFFFF",
+    "popover-foreground": "#1F2937",
+  },
+  overlay: {
+    noiseOpacity: 0,
+    noiseBlendMode: "normal",
+    warmGlowOpacity: 0,
+    warmGlowColor: "transparent",
+  },
+};
+
 /** All built-in themes, keyed by name. */
 export const BUILTIN_THEMES: Record<string, DashboardTheme> = {
   default: defaultTheme,
@@ -226,4 +261,5 @@ export const BUILTIN_THEMES: Record<string, DashboardTheme> = {
   mono: monoTheme,
   cyberpunk: cyberpunkTheme,
   rose: roseTheme,
+  "netclaw-light": netclawLightTheme,
 };

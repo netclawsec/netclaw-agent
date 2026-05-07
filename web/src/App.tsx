@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Routes, Route, NavLink, Navigate } from "react-router-dom";
+import { Routes, Route, NavLink, Navigate, useLocation } from "react-router-dom";
 import {
   Activity, BarChart3, Clock, FileText, KeyRound,
   MessageSquare, Package, Settings, Puzzle,
@@ -14,6 +14,7 @@ import LogsPage from "@/pages/LogsPage";
 import AnalyticsPage from "@/pages/AnalyticsPage";
 import CronPage from "@/pages/CronPage";
 import SkillsPage from "@/pages/SkillsPage";
+import KitchenSink from "@/pages/dev/KitchenSink";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
 import { useI18n } from "@/i18n";
@@ -96,11 +97,22 @@ function buildNavItems(builtIn: NavItem[], plugins: RegisteredPlugin[]): NavItem
 export default function App() {
   const { t } = useI18n();
   const { plugins } = usePlugins();
+  const location = useLocation();
 
   const navItems = useMemo(
     () => buildNavItems(BUILTIN_NAV, plugins),
     [plugins],
   );
+
+  // /dev/* routes get their own full-screen shell (e.g. KitchenSink owns its
+  // AppShell) — render only the route, no Hermes header/footer/overlays.
+  if (location.pathname.startsWith("/dev/")) {
+    return (
+      <Routes>
+        <Route path="/dev/kitchen-sink" element={<KitchenSink />} />
+      </Routes>
+    );
+  }
 
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground overflow-x-hidden">
