@@ -11,12 +11,15 @@ import queue
 import sys
 import threading
 import time
+import urllib.error
+import urllib.request
 import uuid
 from pathlib import Path
 from urllib.parse import parse_qs
 
 logger = logging.getLogger(__name__)
 
+from hermes_cli.employee_auth import employee_data_root
 from api.config import (
     STATE_DIR,
     SESSION_DIR,
@@ -190,10 +193,27 @@ from api.workspace import (
 )
 from api.upload import handle_upload, handle_transcribe
 from api.streaming import _sse, _run_agent_streaming, cancel_stream
+from api.social import (
+    handle_publish_upload,
+    handle_publish_queue_get,
+    handle_publish_queue_post,
+    handle_reply_templates_get,
+    handle_reply_templates_post,
+    handle_intercept_search,
+    handle_intercept_comments,
+    handle_intercept_reply,
+    handle_intercept_tasks,
+    handle_doctor as handle_social_doctor,
+)
 from api.onboarding import (
     apply_onboarding_setup,
     get_onboarding_status,
     complete_onboarding,
+    probe_provider_models,
+    list_managed_providers,
+    save_managed_provider,
+    activate_managed_provider,
+    delete_managed_provider,
 )
 
 # Approval system (optional -- graceful fallback if agent not available)
@@ -397,6 +417,10 @@ button:hover{background:rgba(124,185,255,.25)}
 def handle_get(handler, parsed) -> bool:
     """Handle all GET routes. Returns True if handled, False for 404."""
 
+    # Same-origin proxy for sidecars (publish/intercept/wechat/crm).
+    if _sidecar_proxy(handler, "GET", parsed.path):
+        return True
+
     if parsed.path in ("/", "/index.html"):
         return t(
             handler,
@@ -450,6 +474,21 @@ def handle_get(handler, parsed) -> bool:
 
         return _emp_whoami(handler)
 
+    if parsed.path == "/api/agent/version-info":
+        from api.employee import handle_agent_version_info as _agent_version_info
+
+        return _agent_version_info(handler)
+
+    if parsed.path == "/api/agent/check-update":
+        from api.employee import handle_agent_check_update as _agent_check_update
+
+        return _agent_check_update(handler)
+
+    if parsed.path == "/api/agent/restart":
+        from api.employee import handle_agent_restart as _agent_restart
+
+        return _agent_restart(handler)
+
     if parsed.path == "/favicon.ico":
         static_root = Path(__file__).parent.parent / "static"
         ico_path = (static_root / "favicon.ico").resolve()
@@ -493,6 +532,13 @@ def handle_get(handler, parsed) -> bool:
 
     if parsed.path == "/api/onboarding/status":
         return j(handler, get_onboarding_status())
+
+    if parsed.path == "/api/providers/list":
+        try:
+            return j(handler, list_managed_providers())
+        except Exception as exc:
+            logger.exception("list_managed_providers failed")
+            return bad(handler, f"读取失败：{exc}", 500)
 
     if parsed.path.startswith("/static/"):
         return _serve_static(handler, parsed)
@@ -665,6 +711,9 @@ def handle_get(handler, parsed) -> bool:
         cancelled = cancel_stream(stream_id)
         return j(handler, {"ok": True, "cancelled": cancelled, "stream_id": stream_id})
 
+    if parsed.path in ("/api/intercept/health", "/api/intercept/tasks"):
+        return _proxy_intercept(handler, "GET", parsed.path)
+
     if parsed.path == "/api/chat/stream":
         return _handle_sse_stream(handler, parsed)
 
@@ -717,6 +766,16 @@ def handle_get(handler, parsed) -> bool:
         raw = _skills_list()
         data = json.loads(raw) if isinstance(raw, str) else raw
         return j(handler, {"skills": data.get("skills", [])})
+
+    # Phase 3 — social/intercept GETs
+    if parsed.path == "/api/social/queue":
+        return handle_publish_queue_get(handler)
+    if parsed.path == "/api/social/reply-templates":
+        return handle_reply_templates_get(handler)
+    if parsed.path == "/api/social/doctor":
+        return handle_social_doctor(handler)
+    if parsed.path == "/api/intercept/tasks":
+        return handle_intercept_tasks(handler)
 
     if parsed.path == "/api/skills/content":
         from tools.skills_tool import skill_view as _skill_view, SKILLS_DIR
@@ -789,11 +848,36 @@ def handle_post(handler, parsed) -> bool:
     if not _check_csrf(handler):
         return j(handler, {"error": "Cross-origin request rejected"}, status=403)
 
+    # Same-origin proxy for sidecars (publish/intercept/wechat/crm).
+    if any(parsed.path == p or parsed.path.startswith(p + "/") for p in _SIDECAR_PORTS):
+        try:
+            length = int(handler.headers.get("Content-Length", 0))
+            raw = handler.rfile.read(length) if length else b"{}"
+            body = json.loads(raw.decode("utf-8") or "{}")
+        except Exception:
+            body = {}
+        if _sidecar_proxy(handler, "POST", parsed.path, body):
+            return True
+
     if parsed.path == "/api/upload":
         return handle_upload(handler)
 
     if parsed.path == "/api/transcribe":
         return handle_transcribe(handler)
+
+    # Phase 3 — social publish + intercept (Douyin/XHS via opencli + user real Chrome)
+    if parsed.path == "/api/social/upload":
+        return handle_publish_upload(handler)
+    if parsed.path == "/api/social/queue":
+        return handle_publish_queue_post(handler)
+    if parsed.path == "/api/social/reply-templates":
+        return handle_reply_templates_post(handler)
+    if parsed.path == "/api/intercept/search":
+        return handle_intercept_search(handler)
+    if parsed.path == "/api/intercept/comments":
+        return handle_intercept_comments(handler)
+    if parsed.path == "/api/intercept/reply":
+        return handle_intercept_reply(handler)
 
     body = read_body(handler)
 
@@ -811,6 +895,11 @@ def handle_post(handler, parsed) -> bool:
         from api.license import handle_verify as _license_verify
 
         return _license_verify(handler, body)
+
+    if parsed.path == "/api/employee/resolve-invite":
+        from api.employee import handle_resolve_invite as _emp_resolve
+
+        return _emp_resolve(handler, body)
 
     if parsed.path == "/api/employee/register":
         from api.employee import handle_register as _emp_register
@@ -1004,6 +1093,13 @@ def handle_post(handler, parsed) -> bool:
 
     if parsed.path == "/api/chat":
         return _handle_chat_sync(handler, body)
+
+    if parsed.path in (
+        "/api/intercept/scrape",
+        "/api/intercept/draft",
+        "/api/intercept/post",
+    ):
+        return _proxy_intercept(handler, "POST", parsed.path, body)
 
     # ── Cron API (POST) ──
     if parsed.path == "/api/crons/create":
@@ -1228,6 +1324,47 @@ def handle_post(handler, parsed) -> bool:
     if parsed.path == "/api/onboarding/complete":
         return j(handler, complete_onboarding())
 
+    if parsed.path == "/api/onboarding/test-provider":
+        provider = (body.get("provider") or "").strip()
+        base_url = (body.get("base_url") or "").strip()
+        api_key = (body.get("api_key") or "").strip()
+        try:
+            return j(handler, probe_provider_models(provider, base_url, api_key))
+        except Exception as exc:
+            logger.exception("test-provider probe failed")
+            return j(
+                handler,
+                {"ok": False, "error": f"探测失败：{exc}"},
+                status=200,
+            )
+
+    if parsed.path == "/api/providers/save":
+        try:
+            return j(handler, save_managed_provider(body))
+        except ValueError as exc:
+            return bad(handler, str(exc))
+        except Exception as exc:
+            logger.exception("save_managed_provider failed")
+            return bad(handler, f"保存失败：{exc}", 500)
+
+    if parsed.path == "/api/providers/activate":
+        try:
+            return j(handler, activate_managed_provider(body))
+        except ValueError as exc:
+            return bad(handler, str(exc))
+        except Exception as exc:
+            logger.exception("activate_managed_provider failed")
+            return bad(handler, f"切换失败：{exc}", 500)
+
+    if parsed.path == "/api/providers/delete":
+        try:
+            return j(handler, delete_managed_provider(body))
+        except ValueError as exc:
+            return bad(handler, str(exc))
+        except Exception as exc:
+            logger.exception("delete_managed_provider failed")
+            return bad(handler, f"删除失败：{exc}", 500)
+
     # ── Session pin (POST) ──
     if parsed.path == "/api/session/pin":
         try:
@@ -1370,6 +1507,13 @@ def handle_post(handler, parsed) -> bool:
 
         return j(handler, _agent_update_apply())
 
+    if parsed.path == "/api/agent/static-update/apply":
+        from api.employee import (
+            handle_agent_static_update_apply as _agent_static_update_apply,
+        )
+
+        return _agent_static_update_apply(handler, body)
+
     # ── CLI session import (POST) ──
     if parsed.path == "/api/session/import_cli":
         return _handle_session_import_cli(handler, body)
@@ -1423,6 +1567,95 @@ def handle_post(handler, parsed) -> bool:
         return True
 
     return False  # 404
+
+
+def _intercept_base_url() -> str:
+    return (
+        os.getenv("NETCLAW_INTERCEPT_URL")
+        or os.getenv("HERMES_INTERCEPT_URL")
+        or "http://127.0.0.1:9202"
+    ).rstrip("/")
+
+
+_SIDECAR_PORTS = {
+    "/api/publish": "9201",
+    "/api/intercept": "9202",
+    "/api/wechat": "9203",
+    "/api/crm": "9204",
+}
+
+
+def _sidecar_proxy(handler, method: str, path: str, body: dict | None = None) -> bool:
+    """Forward an /api/<sidecar>/* request to the corresponding local port.
+
+    Used so the webview can make same-origin requests (port 9119) instead of
+    hitting cross-port sidecars directly — pywebview / Edge WebView2 may block
+    the cross-port fetches even with permissive CORS headers.
+    """
+    prefix = next(
+        (p for p in _SIDECAR_PORTS if path == p or path.startswith(p + "/")),
+        None,
+    )
+    if not prefix:
+        return False
+    port = _SIDECAR_PORTS[prefix]
+    target = f"http://127.0.0.1:{port}{path}"
+    data = None if method == "GET" else json.dumps(body or {}).encode("utf-8")
+    request = urllib.request.Request(
+        target,
+        data=data,
+        method=method,
+        headers={"Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            raw = response.read()
+            try:
+                payload = json.loads(raw.decode("utf-8") or "{}") if raw else {}
+            except Exception:
+                payload = {"error": "Sidecar returned non-JSON response"}
+            j(handler, payload, status=response.status)
+            return True
+    except urllib.error.HTTPError as exc:
+        try:
+            payload = json.loads(exc.read().decode("utf-8") or "{}")
+        except Exception:
+            payload = {"error": f"Sidecar returned HTTP {exc.code}"}
+        j(handler, payload, status=exc.code)
+        return True
+    except (OSError, TimeoutError) as exc:
+        logger.warning("Sidecar at %s unreachable: %s", target, exc)
+        bad(handler, f"Sidecar at {prefix} unavailable", 502)
+        return True
+
+
+def _proxy_intercept(
+    handler,
+    method: str,
+    path: str,
+    body: dict | None = None,
+) -> None:
+    target = _intercept_base_url() + path
+    data = None if method == "GET" else json.dumps(body or {}).encode("utf-8")
+    request = urllib.request.Request(
+        target,
+        data=data,
+        method=method,
+        headers={"Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            payload = json.loads(response.read().decode("utf-8") or "{}")
+            return j(handler, payload, status=response.status)
+    except urllib.error.HTTPError as exc:
+        try:
+            payload = json.loads(exc.read().decode("utf-8") or "{}")
+        except Exception:
+            payload = {"error": "Intercept sidecar returned an invalid response"}
+        return j(handler, payload, status=exc.code)
+    except (OSError, TimeoutError) as exc:
+        logger.warning("Intercept sidecar unavailable at %s: %s", target, exc)
+        return bad(handler, "Intercept sidecar unavailable", 502)
 
 
 # ── GET route helpers ─────────────────────────────────────────────────────────
@@ -2072,12 +2305,7 @@ def _handle_cron_recent(handler, parsed):
 
 
 def _handle_memory_read(handler):
-    try:
-        from api.profiles import get_active_hermes_home
-
-        mem_dir = get_active_hermes_home() / "memories"
-    except ImportError:
-        mem_dir = Path.home() / ".hermes" / "memories"
+    mem_dir = employee_data_root() / "memories"
     mem_file = mem_dir / "MEMORY.md"
     user_file = mem_dir / "USER.md"
     memory = (
@@ -2977,12 +3205,7 @@ def _handle_memory_write(handler, body):
         require(body, "section", "content")
     except ValueError as e:
         return bad(handler, str(e))
-    try:
-        from api.profiles import get_active_hermes_home
-
-        mem_dir = get_active_hermes_home() / "memories"
-    except ImportError:
-        mem_dir = Path.home() / ".hermes" / "memories"
+    mem_dir = employee_data_root() / "memories"
     mem_dir.mkdir(parents=True, exist_ok=True)
     section = body["section"]
     if section == "memory":
