@@ -34,12 +34,86 @@ async function getSessionToken(): Promise<string> {
   throw new Error("Session token not available — page must be served by the Hermes dashboard server");
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// Backend shape adapters. The legacy webui/api/routes.py returns sessions
+// with `session_id`/`created_at` etc. while the SPA TS interfaces (designed
+// against hermes_cli/web_server.py FastAPI) expect `id`/`started_at` etc.
+// Normalize at the api boundary so the rest of the app stays clean.
+// ─────────────────────────────────────────────────────────────────────────
+interface RawSession {
+  id?: string;
+  session_id?: string;
+  title?: string | null;
+  source?: string | null;
+  model?: string | null;
+  started_at?: number;
+  created_at?: number;
+  ended_at?: number | null;
+  last_active?: number;
+  updated_at?: number;
+  is_active?: boolean;
+  archived?: boolean;
+  message_count?: number;
+  tool_call_count?: number;
+  input_tokens?: number;
+  output_tokens?: number;
+  preview?: string | null;
+}
+
+function normalizeSession(s: RawSession): SessionInfo {
+  return {
+    id: s.id ?? s.session_id ?? "",
+    source: s.source ?? null,
+    model: s.model ?? null,
+    title: s.title ?? null,
+    started_at: s.started_at ?? s.created_at ?? 0,
+    ended_at: s.ended_at ?? null,
+    last_active: s.last_active ?? s.updated_at ?? 0,
+    is_active: s.is_active ?? !s.archived,
+    message_count: s.message_count ?? 0,
+    tool_call_count: s.tool_call_count ?? 0,
+    input_tokens: s.input_tokens ?? 0,
+    output_tokens: s.output_tokens ?? 0,
+    preview: s.preview ?? null,
+  };
+}
+
+interface RawPagedSessions {
+  sessions?: RawSession[];
+  total?: number;
+  limit?: number;
+  offset?: number;
+}
+
 export const api = {
   getStatus: () => fetchJSON<StatusResponse>("/api/status"),
-  getSessions: (limit = 20, offset = 0) =>
-    fetchJSON<PaginatedSessions>(`/api/sessions?limit=${limit}&offset=${offset}`),
-  getSessionMessages: (id: string) =>
-    fetchJSON<SessionMessagesResponse>(`/api/sessions/${encodeURIComponent(id)}/messages`),
+  getSessions: async (limit = 20, offset = 0): Promise<PaginatedSessions> => {
+    const r = await fetchJSON<RawPagedSessions>(
+      `/api/sessions?limit=${limit}&offset=${offset}`,
+    );
+    const list = (r.sessions ?? []).map(normalizeSession);
+    return {
+      sessions: list,
+      total: r.total ?? list.length,
+      limit: r.limit ?? limit,
+      offset: r.offset ?? offset,
+    };
+  },
+  getSessionMessages: async (id: string): Promise<SessionMessagesResponse> => {
+    // hermes_cli/web_server.py exposes /api/sessions/{id}/messages directly,
+    // but the legacy webui server returns {session: {messages: [...]}} from
+    // /api/session?session_id=. Try the modern path first, fall back to legacy.
+    try {
+      return await fetchJSON<SessionMessagesResponse>(
+        `/api/sessions/${encodeURIComponent(id)}/messages`,
+      );
+    } catch {
+      const r = await fetchJSON<{ session?: { messages?: SessionMessage[] } }>(
+        `/api/session?session_id=${encodeURIComponent(id)}`,
+      );
+      return { session_id: id, messages: r?.session?.messages ?? [] };
+    }
+  },
   deleteSession: (id: string) =>
     fetchJSON<{ ok: boolean }>(`/api/sessions/${encodeURIComponent(id)}`, {
       method: "DELETE",
