@@ -34,6 +34,7 @@ from api.config import (
     SERVER_START_TIME,
     _resolve_cli_toolsets,
     _INDEX_HTML_PATH,
+    _WEB_DIST_PATH,
     get_available_models,
     IMAGE_EXTS,
     MD_EXTS,
@@ -529,12 +530,8 @@ def handle_get(handler, parsed) -> bool:
     # New UI lives in hermes_cli/web_dist/ (built from web/src/), legacy
     # webui/static/ has been removed.
     if parsed.path.startswith("/assets/") or parsed.path.startswith("/fonts/"):
-        from api.config import _WEB_DIST_PATH
-
         return _serve_spa_asset(handler, parsed, "", _WEB_DIST_PATH)
     if parsed.path == "/favicon.ico":
-        from api.config import _WEB_DIST_PATH
-
         return _serve_spa_asset(handler, parsed, "/", _WEB_DIST_PATH)
 
     if parsed.path == "/api/session":
@@ -833,8 +830,6 @@ def handle_get(handler, parsed) -> bool:
     # SPA client-side routing fallback — any unmatched non-API GET returns
     # index.html so React Router can handle it (/social, /wechat, /settings/*, …).
     if not parsed.path.startswith("/api/"):
-        from api.helpers import t
-
         try:
             return t(
                 handler,
