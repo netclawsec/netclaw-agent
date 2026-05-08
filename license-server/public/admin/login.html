@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>NetClaw 控制台 · 登录</title>
+  <title>NetClaw 管理后台 · 登录</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ctext y='14' font-size='14'%3E🐾%3C/text%3E%3C/svg%3E" />
 </head>
@@ -11,8 +11,8 @@
   <main class="w-full max-w-sm px-6">
     <header class="text-center mb-8">
       <div class="text-4xl mb-2">🐾</div>
-      <h1 class="text-2xl font-semibold text-slate-900">NetClaw 控制台</h1>
-      <p class="text-sm text-slate-500 mt-1">License 管理 · 多租户</p>
+      <h1 id="page-title" class="text-2xl font-semibold text-slate-900">网钳科技</h1>
+      <p id="page-subtitle" class="text-sm text-slate-500 mt-1">管理后台 · 登录</p>
     </header>
 
     <form id="login-form" class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
@@ -26,11 +26,15 @@
         <input id="password" type="password" autocomplete="current-password" required
           class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
       </div>
-      <div>
-        <label class="block text-sm font-medium text-slate-700 mb-1">
-          License Key
-          <span class="text-xs text-slate-400 font-normal">(公司管理员必填，超管留空)</span>
-        </label>
+      <!--
+        License Key field is shown only on the tenant-admin login surface
+        (netclawsec.com.cn). On the super-admin host
+        (license.netclawsec.com.cn) super admins don't need a license key,
+        so the JS init at the bottom removes the field entirely before any
+        form submission.
+      -->
+      <div id="license-key-row">
+        <label class="block text-sm font-medium text-slate-700 mb-1">License Key</label>
         <input id="license_key" type="text" autocomplete="off" placeholder="NCLW-XXXXX-XXXXX-XXXXX"
           class="w-full px-3 py-2 border border-slate-300 rounded-md font-mono text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
           autocapitalize="characters" spellcheck="false" />
@@ -45,10 +49,33 @@
     </form>
 
     <p class="text-center text-xs text-slate-400 mt-6">
-      &copy; NetClaw · 仅限授权管理员使用
+      &copy; 网钳科技 · 仅限授权管理员使用
     </p>
   </main>
 
+  <script>
+    // Surface detection: super-admin domain hides the License Key field
+    // entirely; the tenant-admin (or any other) domain shows it. Page
+    // header text adjusts so admins know which surface they're on.
+    (function () {
+      const host = (location.hostname || '').toLowerCase();
+      const isSuperHost =
+        host === 'license.netclawsec.com.cn' || host.startsWith('license.');
+      const t = document.getElementById('page-title');
+      const s = document.getElementById('page-subtitle');
+      if (isSuperHost) {
+        document.title = '超级管理员 · 登录';
+        if (t) t.textContent = '超级管理员';
+        if (s) s.textContent = '管理租户、License、安装包发布';
+        const row = document.getElementById('license-key-row');
+        if (row) row.remove();
+      } else {
+        document.title = '企业管理员 · 登录';
+        if (t) t.textContent = '企业管理员';
+        if (s) s.textContent = '管理本企业的员工、邀请码、License';
+      }
+    })();
+  </script>
   <script src="js/login.js"></script>
 </body>
 </html>

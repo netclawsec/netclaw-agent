@@ -35,10 +35,15 @@ form.addEventListener('submit', async (event) => {
       body: JSON.stringify({
         username: document.getElementById('username').value,
         password: document.getElementById('password').value,
-        // Trim + uppercase to be lenient with copy-paste from emails. Empty
-        // string means "no license key supplied" — server-side requires it
-        // for tenant_admin only.
-        license_key: (document.getElementById('license_key').value || '').trim().toUpperCase() || undefined
+        // The License Key field only exists on the tenant-admin login surface;
+        // on the super-admin host the row is removed entirely by login.html's
+        // host-detection JS. Guard the lookup so super admins don't null-deref.
+        license_key: (() => {
+          const el = document.getElementById('license_key');
+          if (!el) return undefined;
+          const v = (el.value || '').trim().toUpperCase();
+          return v || undefined;
+        })()
       })
     });
     const data = await res.json().catch(() => ({}));
