@@ -67,8 +67,8 @@ $('open-create-tenant').addEventListener('click', () => {
         <input id="ct-name" required class="w-full border border-slate-300 rounded px-3 py-2" placeholder="北京东方童" />
       </div>
       <div>
-        <label class="block text-sm font-medium text-slate-700 mb-1">slug（英文短码，3-32 字符，可含 - ）</label>
-        <input id="ct-slug" required pattern="^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$" class="w-full border border-slate-300 rounded px-3 py-2 font-mono text-xs" placeholder="dongfangtong" />
+        <label class="block text-sm font-medium text-slate-700 mb-1">组织代码（员工登录用 · 英文小写短码 3-32 位，可含 - ）</label>
+        <input id="ct-slug" required pattern="^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$" class="w-full border border-slate-300 rounded px-3 py-2 font-mono text-xs" placeholder="acme 或 dongfangtong" />
       </div>
       <div>
         <label class="block text-sm font-medium text-slate-700 mb-1">座位数（quota）</label>
