@@ -398,6 +398,7 @@ def _request_json(
     payload: Optional[dict] = None,
     bearer: Optional[str] = None,
     timeout: int = REQUEST_TIMEOUT_SECONDS,
+    _redirect_depth: int = 0,
 ) -> tuple[int, dict]:
     headers = {
         "User-Agent": f"netclaw-agent/{_app_version()}",
@@ -414,6 +415,29 @@ def _request_json(
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             return resp.status, json.loads(resp.read() or b"null") or {}
     except urllib.error.HTTPError as err:
+        # Python's default urllib does NOT follow 307/308 for POST requests
+        # (preserves method but won't auto-follow), so we handle them manually.
+        # Cap redirect depth to avoid loops; 5 hops is plenty for the
+        # http→https Caddy redirect plus any normalization.
+        if err.code in (301, 302, 303, 307, 308) and _redirect_depth < 5:
+            location = err.headers.get("Location")
+            if location:
+                # Resolve relative redirects against the request URL.
+                from urllib.parse import urljoin
+
+                next_url = urljoin(url, location)
+                # 303 always becomes GET; 301/302 historically swap method
+                # too, but 307/308 must preserve POST + body.
+                next_method = "GET" if err.code == 303 else method
+                next_payload = None if err.code == 303 else payload
+                return _request_json(
+                    next_method,
+                    next_url,
+                    payload=next_payload,
+                    bearer=bearer,
+                    timeout=timeout,
+                    _redirect_depth=_redirect_depth + 1,
+                )
         try:
             data = json.loads(err.read() or b"null") or {}
         except Exception:
@@ -568,10 +592,14 @@ def login(
     ensure_employee_data_dirs()
     # Login response carries no department info — backfill from /me so the
     # local cache + status line are populated. Best-effort: a failure here
-    # doesn't invalidate the just-saved session.
+    # doesn't invalidate the just-saved session. Catch *any* exception
+    # (urllib URLError, ssl errors, JSON decode errors, etc.) — the bundled
+    # PyInstaller Python sometimes throws SSL alerts on a follow-up request
+    # even when the initial POST succeeded; we don't want that to fail the
+    # whole login flow.
     try:
         _backfill_state_from_me(state)
-    except EmployeeAuthError:
+    except Exception:
         pass
     return state
 

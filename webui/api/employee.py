@@ -168,16 +168,77 @@ def handle_login(handler, body: dict) -> bool:
     organization = (body.get("organization") or "").strip()
     if not username or not password:
         return bad(handler, "username and password are required")
+    # Direct login — bypass ea.login() because the bundled PyInstaller Python's
+    # OpenSSL throws SSL alerts on follow-up urlopen() calls (after the first
+    # request completes), and ea.login()'s post-login /me backfill triggers
+    # exactly that pattern. We do the POST ourselves, save the state, and
+    # skip backfill (department info is not strictly required for login).
+    server = ea.server_base()
+    fp = ea.machine_fingerprint()
+    payload = json.dumps(
+        {
+            "tenant_slug": (organization or "").lower() or None,
+            "username": username,
+            "password": password,
+            "machine_fingerprint": fp,
+        }
+    ).encode()
+    req = urllib.request.Request(
+        f"{server}/api/employee/login",
+        data=payload,
+        method="POST",
+        headers={
+            "User-Agent": "netclaw-agent",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        },
+    )
     try:
-        state = ea.login(
-            username=username,
-            password=password,
-            tenant_slug=organization or None,
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            data = json.loads(resp.read() or b"{}")
+    except urllib.error.HTTPError as err:
+        try:
+            data = json.loads(err.read() or b"{}")
+        except Exception:
+            data = {"error": f"http_{err.code}"}
+        return j(
+            handler,
+            {
+                "error": data.get("error") or f"http_{err.code}",
+                "message": data.get("message", ""),
+            },
+            status=err.code if err.code < 500 else 400,
         )
-    except ea.EmployeeAuthError as err:
-        return j(handler, {"error": str(err)}, status=400)
     except Exception as err:
         return j(handler, {"error": "login_failed", "detail": str(err)}, status=500)
+    if not data.get("success"):
+        return j(
+            handler,
+            {
+                "error": data.get("error") or "login_failed",
+                "message": data.get("message", ""),
+            },
+            status=400,
+        )
+    state = ea.EmployeeState(
+        token=data["jwt"],
+        employee_id=data["employee_id"],
+        tenant_id=data.get("tenant_id") or "",
+        username=data["username"],
+        display_name=None,
+        department_id="",
+        department_name=None,
+        department_abbrev=None,
+        machine_fingerprint=fp,
+        server=server,
+        expires_at=data.get("expires_at"),
+        refreshed_at=None,
+    )
+    try:
+        ea.save_auth_state(state)
+        ea.ensure_employee_data_dirs()
+    except Exception as err:
+        return j(handler, {"error": "save_failed", "detail": str(err)}, status=500)
     _reset_employee_storage_cache()
     return j(handler, _public_state(state))
 
