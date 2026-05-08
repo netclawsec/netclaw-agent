@@ -1,18 +1,30 @@
 import { useEffect, useState } from "react";
-import { Mail, Building2, ShieldCheck, Globe, Sparkles, User as UserIcon } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Mail, Building2, ShieldCheck, Globe, Sparkles, User as UserIcon, LogOut } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
 
 interface WhoAmI {
+  logged_in?: boolean;
   username?: string;
   display_name?: string;
   tenant_name?: string;
   tenant_slug?: string;
   role?: string;
   email?: string;
+  // Multi-tenant license server returns nested {employee: {...}}.
+  employee?: {
+    username?: string;
+    display_name?: string;
+    department_name?: string;
+    department_abbrev?: string;
+    tenant_id?: string;
+  };
+  expires_at?: string;
 }
 
 interface LicenseStatus {
@@ -25,10 +37,12 @@ interface LicenseStatus {
 }
 
 export default function AccountPage() {
+  const navigate = useNavigate();
   const [me, setMe] = useState<WhoAmI | null>(null);
   const [meLoading, setMeLoading] = useState(true);
   const [license, setLicense] = useState<LicenseStatus | null>(null);
   const [licLoading, setLicLoading] = useState(true);
+  const [loggingOut, setLoggingOut] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -76,16 +90,49 @@ export default function AccountPage() {
               <Skeleton className="h-4 w-2/3" />
               <Skeleton className="h-4 w-1/3" />
             </>
-          ) : me ? (
+          ) : me?.logged_in ? (
             <>
-              <Field icon={Mail} label="用户名" value={me.username ?? "—"} />
-              {me.display_name && <Field icon={UserIcon} label="昵称" value={me.display_name} />}
+              <Field icon={Mail} label="用户名" value={me.employee?.username ?? me.username ?? "—"} />
+              {(me.employee?.display_name || me.display_name) && (
+                <Field icon={UserIcon} label="昵称" value={me.employee?.display_name ?? me.display_name ?? "—"} />
+              )}
               {me.email && <Field icon={Mail} label="邮箱" value={me.email} />}
-              <Field icon={Building2} label="组织" value={me.tenant_name ?? me.tenant_slug ?? "default"} />
-              <Field icon={ShieldCheck} label="角色" value={me.role ?? "—"} />
+              <Field
+                icon={Building2}
+                label="部门"
+                value={me.employee?.department_name ?? me.tenant_name ?? me.tenant_slug ?? "—"}
+              />
+              {me.role && <Field icon={ShieldCheck} label="角色" value={me.role} />}
+              {me.expires_at && (
+                <Field icon={ShieldCheck} label="登录到期" value={me.expires_at.slice(0, 19).replace("T", " ")} />
+              )}
+              <div className="pt-3 border-t border-border mt-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={loggingOut}
+                  onClick={async () => {
+                    setLoggingOut(true);
+                    try {
+                      await fetch("/api/employee/logout", { method: "POST" });
+                    } catch {
+                      // best effort — even if server hiccup, force-redirect
+                    }
+                    navigate("/login", { replace: true });
+                    // hard reload so all session-tied state (themes, sessions
+                    // list etc) clears.
+                    setTimeout(() => window.location.reload(), 100);
+                  }}
+                >
+                  <LogOut className="h-3.5 w-3.5" /> {loggingOut ? "退出中..." : "退出登录"}
+                </Button>
+              </div>
             </>
           ) : (
-            <div className="text-sm text-muted-foreground">未登录或 license 未激活</div>
+            <div className="space-y-2">
+              <div className="text-sm text-muted-foreground">尚未登录</div>
+              <Button size="sm" onClick={() => navigate("/login")}>去登录</Button>
+            </div>
           )}
         </CardContent>
       </Card>

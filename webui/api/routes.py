@@ -578,27 +578,102 @@ def handle_get(handler, parsed) -> bool:
         )
 
     if parsed.path == "/api/analytics/usage":
-        # Legacy webui doesn't have a token-usage analytics rollup yet.
-        # Return an empty-but-valid shape so the SPA renders the empty state.
+        # Aggregate real per-session token usage into daily / by-model / totals.
+        from datetime import datetime, timezone
+        from collections import defaultdict
+
+        days_qs = parse_qs(parsed.query).get("days", ["7"])[0]
+        try:
+            days = max(1, min(365, int(days_qs)))
+        except (TypeError, ValueError):
+            days = 7
+        cutoff_ts = time.time() - days * 86400
+
+        daily_buckets: dict[str, dict[str, float]] = defaultdict(
+            lambda: {
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "cache_read_tokens": 0,
+                "reasoning_tokens": 0,
+                "estimated_cost": 0.0,
+                "actual_cost": 0.0,
+                "sessions": 0,
+            }
+        )
+        by_model_buckets: dict[str, dict[str, float]] = defaultdict(
+            lambda: {
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "estimated_cost": 0.0,
+                "sessions": 0,
+            }
+        )
+        total_input = total_output = total_sessions = 0
+        with LOCK:
+            for s in SESSIONS.values():
+                # Use whatever timestamp the session has — created_at preferred.
+                ts = (
+                    getattr(s, "created_at", None)
+                    or getattr(s, "updated_at", None)
+                    or 0
+                )
+                if not ts or ts < cutoff_ts:
+                    continue
+                day_key = datetime.fromtimestamp(ts, tz=timezone.utc).strftime(
+                    "%Y-%m-%d"
+                )
+                in_tok = int(getattr(s, "input_tokens", 0) or 0)
+                out_tok = int(getattr(s, "output_tokens", 0) or 0)
+                model = getattr(s, "model", None) or "unknown"
+
+                bucket = daily_buckets[day_key]
+                bucket["input_tokens"] += in_tok
+                bucket["output_tokens"] += out_tok
+                bucket["sessions"] += 1
+
+                m = by_model_buckets[model]
+                m["input_tokens"] += in_tok
+                m["output_tokens"] += out_tok
+                m["sessions"] += 1
+
+                total_input += in_tok
+                total_output += out_tok
+                total_sessions += 1
+
+        daily = [{"day": day, **stats} for day, stats in sorted(daily_buckets.items())]
+        by_model = [
+            {"model": m, **stats}
+            for m, stats in sorted(
+                by_model_buckets.items(), key=lambda x: -x[1]["sessions"]
+            )
+        ]
         return j(
             handler,
             {
-                "daily": [],
-                "by_model": [],
+                "daily": daily,
+                "by_model": by_model,
                 "totals": {
-                    "total_input": 0,
-                    "total_output": 0,
+                    "total_input": total_input,
+                    "total_output": total_output,
                     "total_cache_read": 0,
                     "total_reasoning": 0,
                     "total_estimated_cost": 0.0,
                     "total_actual_cost": 0.0,
-                    "total_sessions": 0,
+                    "total_sessions": total_sessions,
                 },
             },
         )
 
     if parsed.path == "/api/config":
-        return j(handler, load_settings())
+        # Real webui config — settings.json + active provider/model/theme rolled up.
+        try:
+            view = get_available_models() or {}
+        except Exception:
+            view = {}
+        out = load_settings() or {}
+        if isinstance(view, dict):
+            out = {**out, **view}
+        return j(handler, out)
 
     if parsed.path == "/api/config/defaults":
         return j(handler, {})
@@ -607,32 +682,36 @@ def handle_get(handler, parsed) -> bool:
         return j(handler, {"fields": {}, "category_order": []})
 
     if parsed.path == "/api/cron/jobs":
-        # Forward to legacy /api/crons handler shape, normalized for SPA.
+        # Real cron list from cron.jobs (the same backing store /api/crons uses).
         try:
-            from api.cron_persist import list_jobs as _list_jobs
+            from cron.jobs import list_jobs as _list_jobs
 
-            jobs = _list_jobs()
+            jobs = _list_jobs(include_disabled=True)
         except Exception:
             jobs = []
         return j(handler, jobs)
 
     if parsed.path == "/api/dashboard/themes":
+        # Mirror the BUILTIN_THEMES list defined in web/src/themes/presets.ts so
+        # the dashboard ThemeSwitcher always sees every preset.
+        themes_list = [
+            {"name": "default", "label": "Hermes Dark", "description": "经典深色"},
+            {
+                "name": "netclaw-light",
+                "label": "NetClaw Light",
+                "description": "默认浅色（紫色）",
+            },
+            {"name": "midnight", "label": "Midnight", "description": "深蓝"},
+            {"name": "ember", "label": "Ember", "description": "暖橙"},
+            {"name": "mono", "label": "Mono", "description": "纯单色"},
+            {"name": "cyberpunk", "label": "Cyberpunk", "description": "霓虹"},
+            {"name": "rose", "label": "Rose", "description": "玫粉"},
+        ]
         return j(
             handler,
             {
-                "themes": [
-                    {
-                        "name": "netclaw-light",
-                        "label": "NetClaw Light",
-                        "description": "默认主题",
-                    },
-                    {
-                        "name": "netclaw-dark",
-                        "label": "NetClaw Dark",
-                        "description": "深色",
-                    },
-                ],
-                "active": load_settings().get("theme", "netclaw-light"),
+                "themes": themes_list,
+                "active": load_settings().get("theme") or "netclaw-light",
             },
         )
 
@@ -640,21 +719,47 @@ def handle_get(handler, parsed) -> bool:
         return j(handler, [])
 
     if parsed.path == "/api/model/info":
-        settings = load_settings()
+        # Read real model + provider from active config (config.yaml + settings).
+        try:
+            view = get_available_models() or {}
+        except Exception:
+            view = {}
+        settings = load_settings() or {}
+        active_model = (
+            view.get("default_model")
+            or settings.get("model")
+            or DEFAULT_MODEL
+            or "unknown"
+        )
+        provider = view.get("active_provider") or settings.get("provider") or "auto"
+        # Per-model context window heuristics — real values would come from the
+        # provider's /models endpoint, which webui doesn't proxy yet.
+        ctx_map = {
+            "deepseek": 128000,
+            "claude": 200000,
+            "gpt": 128000,
+            "gemini": 1000000,
+        }
+        ctx = next(
+            (v for k, v in ctx_map.items() if k in active_model.lower()),
+            128000,
+        )
         return j(
             handler,
             {
-                "model": settings.get("model") or DEFAULT_MODEL,
-                "provider": settings.get("provider") or "auto",
-                "auto_context_length": 128000,
+                "model": active_model,
+                "provider": provider,
+                "auto_context_length": ctx,
                 "config_context_length": 0,
-                "effective_context_length": 128000,
+                "effective_context_length": ctx,
                 "capabilities": {
                     "supports_tools": True,
-                    "supports_vision": False,
+                    "supports_vision": "claude" in active_model.lower()
+                    or "gpt-4" in active_model.lower(),
                     "supports_reasoning": False,
-                    "context_window": 128000,
+                    "context_window": ctx,
                     "max_output_tokens": 8192,
+                    "model_family": provider,
                 },
             },
         )
