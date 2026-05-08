@@ -60,14 +60,14 @@ export default function AccountPage() {
   return (
     <div className="space-y-5 max-w-3xl">
       <div>
-        <h2 className="font-display text-xl font-bold">账户 / Account</h2>
+        <h2 className="font-display text-xl font-bold">账户</h2>
         <p className="text-sm text-muted-foreground">个人资料、组织信息与偏好设置</p>
       </div>
 
       <Card className="rounded-xl">
         <CardHeader>
-          <CardTitle>个人资料 / Profile</CardTitle>
-          <CardDescription>从 license server 多租户账号同步（只读 · 修改请联系管理员）</CardDescription>
+          <CardTitle>个人资料</CardTitle>
+          <CardDescription>从 License Server 多租户账号同步（只读，修改请联系管理员）</CardDescription>
         </CardHeader>
         <CardContent className="space-y-2.5">
           {meLoading ? (
@@ -92,7 +92,7 @@ export default function AccountPage() {
 
       <Card className="rounded-xl">
         <CardHeader>
-          <CardTitle>外观 / Appearance</CardTitle>
+          <CardTitle>外观</CardTitle>
           <CardDescription>主题与语言</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap items-center gap-3">
@@ -105,8 +105,18 @@ export default function AccountPage() {
 
       <Card className="rounded-xl">
         <CardHeader>
-          <CardTitle>License</CardTitle>
-          <CardDescription>当前订阅状态（来自 /api/license）</CardDescription>
+          <CardTitle>授权 License</CardTitle>
+          <CardDescription>
+            管理后台：
+            <a
+              href="https://license.netclawsec.com.cn/admin/login.html"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary hover:underline ml-1"
+            >
+              license.netclawsec.com.cn/admin/login.html
+            </a>
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
           {licLoading ? (

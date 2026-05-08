@@ -123,7 +123,7 @@ export default function AgentChatPage() {
       <Card className="rounded-xl flex flex-col overflow-hidden">
         <CardHeader className="shrink-0">
           <CardTitle className="flex items-center justify-between">
-            会话 / Sessions
+            会话历史
             <Button size="sm" variant="ghost" onClick={() => { setActiveId(null); setMessages([]); }}>
               新建
             </Button>
@@ -167,7 +167,7 @@ export default function AgentChatPage() {
         <CardHeader className="shrink-0 flex-row items-center justify-between">
           <div>
             <CardTitle>{sessions?.find((s) => s.id === activeId)?.title || "新对话"}</CardTitle>
-            <CardDescription>POST /api/chat/start → SSE /api/chat/stream</CardDescription>
+            <CardDescription>跟你的 AI 员工对话 · 流式响应</CardDescription>
           </div>
         </CardHeader>
         <CardContent className="flex-1 overflow-y-auto p-4 space-y-3">

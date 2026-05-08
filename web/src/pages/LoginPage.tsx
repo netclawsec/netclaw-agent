@@ -60,6 +60,19 @@ export default function LoginPage() {
         if (data && typeof data === "object") setLicense(data as LicenseStatus);
       })
       .catch(() => undefined);
+
+    // If the user already has a valid employee session, skip straight into
+    // the AI 员工 workspace instead of forcing them to re-login.
+    fetch("/api/employee/whoami")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data?.logged_in) {
+          navigate("/agent-chat", { replace: true });
+        }
+      })
+      .catch(() => undefined);
+    // navigate is stable from react-router; safe to omit
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
@@ -211,7 +224,16 @@ export default function LoginPage() {
           </form>
 
           <p className="text-[0.65rem] text-muted-foreground">
-            license.netclawsec.com.cn · 多租户认证
+            认证服务：
+            <a
+              href="https://license.netclawsec.com.cn/admin/login.html"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary hover:underline"
+            >
+              license.netclawsec.com.cn
+            </a>
+            （多租户）
           </p>
         </div>
       </div>

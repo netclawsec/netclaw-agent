@@ -44,13 +44,13 @@ export function MainShell({ children }: MainShellProps) {
 
   const meta = useMemo<RouteMeta>(() => {
     const p = location.pathname;
-    if (p === "/") return { title: t.app.nav.agentChat, subtitle: "AI Employee", breadcrumbs: [{ label: t.app.nav.agentChat }] };
-    if (p.startsWith("/social")) return { title: t.app.nav.social, subtitle: "Social Media Auto-Publish", breadcrumbs: [{ label: t.app.nav.social }] };
-    if (p.startsWith("/studio/video")) return { title: t.app.nav.studioVideo, subtitle: "AI Video Studio", breadcrumbs: [{ label: "Studio", href: "/" }, { label: t.app.nav.studioVideo }] };
-    if (p.startsWith("/studio/image")) return { title: t.app.nav.studioImage, subtitle: "AI Image Studio", breadcrumbs: [{ label: "Studio", href: "/" }, { label: t.app.nav.studioImage }] };
-    if (p.startsWith("/wechat")) return { title: "微信回复", subtitle: "WeChat Automatic Reply Inbox", breadcrumbs: [{ label: "微信回复" }] };
-    if (p.startsWith("/agent-chat")) return { title: t.app.nav.agentChat, subtitle: "Agent Chat Workspace", breadcrumbs: [{ label: t.app.nav.agentChat }] };
-    if (p.startsWith("/analytics")) return { title: t.app.nav.analytics, subtitle: "Analytics", breadcrumbs: [{ label: t.app.nav.analytics }] };
+    if (p === "/") return { title: t.app.nav.agentChat, subtitle: "随时跟你的 AI 员工对话", breadcrumbs: [{ label: t.app.nav.agentChat }] };
+    if (p.startsWith("/social")) return { title: t.app.nav.social, subtitle: "抖音 / 小红书 / 视频号 一键发布", breadcrumbs: [{ label: t.app.nav.social }] };
+    if (p.startsWith("/studio/video")) return { title: t.app.nav.studioVideo, subtitle: "AI 一键成片与批量混剪", breadcrumbs: [{ label: "工作室", href: "/" }, { label: t.app.nav.studioVideo }] };
+    if (p.startsWith("/studio/image")) return { title: t.app.nav.studioImage, subtitle: "AI 图像生成与海报设计", breadcrumbs: [{ label: "工作室", href: "/" }, { label: t.app.nav.studioImage }] };
+    if (p.startsWith("/wechat")) return { title: "微信回复", subtitle: "客户消息收件箱", breadcrumbs: [{ label: "微信回复" }] };
+    if (p.startsWith("/agent-chat")) return { title: t.app.nav.agentChat, subtitle: "随时跟你的 AI 员工对话", breadcrumbs: [{ label: t.app.nav.agentChat }] };
+    if (p.startsWith("/analytics")) return { title: t.app.nav.analytics, subtitle: "运营数据与成本", breadcrumbs: [{ label: t.app.nav.analytics }] };
     if (p.startsWith("/settings/runtime")) {
       const tab = p.replace("/settings/runtime/", "");
       return {
