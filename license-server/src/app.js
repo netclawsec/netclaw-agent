@@ -49,8 +49,12 @@ app.post('/api/admin/licenses',     adminAuth,       admin);
 // "what's latest?" — the actual download still requires the tenant-specific
 // signed URL the response carries).
 const agentVersionsRoutes = require('./routes/agent_versions');
+const staticBundlesRoutes = require('./routes/static_bundles');
+const downloadsRoutes = require('./routes/downloads');
 const versionCheckLimiter = rateLimit({ windowMs: 60_000, limit: 60, standardHeaders: true, legacyHeaders: false });
+const readLimiter = versionCheckLimiter;
 app.get('/api/agent/version-check', versionCheckLimiter, agentVersionsRoutes.check);
+app.get('/api/agent/static-bundle-check', readLimiter, staticBundlesRoutes.check);
 
 // Employee-side API (Bearer JWT auth; no cookies; rate-limited per IP).
 const employeeRoutes = require('./routes/employee');
@@ -58,6 +62,7 @@ const employeeLoginLimiter    = rateLimit({ windowMs: 60_000, limit: 10, standar
 const employeeRegisterLimiter = rateLimit({ windowMs: 60_000, limit: 5,  standardHeaders: true, legacyHeaders: false });
 const employeeReadLimiter     = rateLimit({ windowMs: 60_000, limit: 60, standardHeaders: true, legacyHeaders: false });
 
+app.get ('/api/employee/tenant-by-invite', employeeReadLimiter,     employeeRoutes.tenantByInvite);
 app.post('/api/employee/register',         employeeRegisterLimiter, asyncHandler(employeeRoutes.register));
 app.post('/api/employee/login',            employeeLoginLimiter,    asyncHandler(employeeRoutes.login));
 app.get ('/api/employee/me',               employeeReadLimiter,     employeeRoutes.requireEmployee, employeeRoutes.me);
@@ -92,6 +97,10 @@ cookieAuthRouter.delete('/super/admins/:admin_id',              requireSuper, su
 cookieAuthRouter.get   ('/super/agent/versions',                requireSuper, agentVersionsRoutes.listAll);
 cookieAuthRouter.post  ('/super/agent/versions',                requireSuper, agentVersionsRoutes.publish);
 cookieAuthRouter.delete('/super/agent/versions/:version',       requireSuper, agentVersionsRoutes.deleteOne);
+
+cookieAuthRouter.post  ('/super/static-bundles',                requireSuper, asyncHandler(staticBundlesRoutes.publish));
+cookieAuthRouter.get   ('/super/static-bundles',                requireSuper, staticBundlesRoutes.listAll);
+cookieAuthRouter.delete('/super/static-bundles/:version',       requireSuper, staticBundlesRoutes.retract);
 
 cookieAuthRouter.get   ('/tenant/dashboard',                              requireTenantAdmin, tenantRoutes.dashboard);
 cookieAuthRouter.get   ('/tenant/licenses',                               requireTenantAdmin, tenantRoutes.listLicenses);
@@ -140,12 +149,23 @@ app.post('/api/internal/build-queue/reap',             workerLimiter, requireBui
 
 app.use('/api', cookieAuthRouter);
 
+app.get('/downloads/installer-universal-latest', downloadsRoutes.latestInstaller);
+app.get('/downloads/installer-universal/:version', downloadsRoutes.versionedInstaller);
+app.get('/downloads/installer-mac-latest',         downloadsRoutes.latestDmg);
+app.get('/downloads/installer-mac/:version',       downloadsRoutes.versionedDmg);
+app.get('/downloads/static-bundle/:version', readLimiter, staticBundlesRoutes.download);
+
+// Admin surfaces: same static directory served under two paths.
+// - /admin/* — 企业管理员入口 (login.html shows License Key field)
+// - /super/* — 超级管理员入口 (login.html hides License Key field by JS path
+//   detection). Both paths serve the same files; the JS in login.html
+//   branches based on location.pathname.
 const path = require('node:path');
-app.use('/admin', express.static(path.join(__dirname, '..', 'public', 'admin'), {
-  index: 'login.html',
-  extensions: ['html']
-}));
+const _adminDir = path.join(__dirname, '..', 'public', 'admin');
+app.use('/admin', express.static(_adminDir, { index: 'login.html', extensions: ['html'] }));
+app.use('/super', express.static(_adminDir, { index: 'login.html', extensions: ['html'] }));
 app.get('/admin', (req, res) => res.redirect('/admin/login.html'));
+app.get('/super', (req, res) => res.redirect('/super/login.html'));
 
 app.use((req, res) => res.status(404).json({ error: 'not_found' }));
 app.use((err, req, res, next) => {

@@ -51,10 +51,13 @@ form.addEventListener('submit', async (event) => {
       showError(ERR_MSG[data.error] || '登录失败：' + (data.error || res.statusText));
       return;
     }
+    // Always land on absolute paths so navigation works regardless of
+    // whether the login was opened under /admin/login.html or
+    // /super/login.html. Both paths serve the same static dir.
     if (data.admin.role === 'super') {
-      window.location.href = './super.html';
+      window.location.href = '/super/super.html';
     } else {
-      window.location.href = './tenant.html';
+      window.location.href = '/admin/tenant.html';
     }
   } catch (err) {
     showError('网络错误：' + err.message);

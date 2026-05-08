@@ -174,7 +174,9 @@ export default function LoginPage() {
               variant="ghost"
               type="button"
               className="h-7 px-2 text-[0.7rem] mt-1"
-              onClick={() => openExternal("https://netclawsec.com.cn/login")}
+              onClick={() =>
+                openExternal("https://license.netclawsec.com.cn/admin/login.html")
+              }
             >
               打开管理后台
             </Button>

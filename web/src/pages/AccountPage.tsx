@@ -158,7 +158,9 @@ export default function AccountPage() {
           <Button
             size="sm"
             variant="outline"
-            onClick={() => openExternal("https://netclawsec.com.cn/login")}
+            onClick={() =>
+              openExternal("https://license.netclawsec.com.cn/admin/login.html")
+            }
           >
             打开管理后台
           </Button>

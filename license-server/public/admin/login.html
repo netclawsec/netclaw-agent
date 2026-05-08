@@ -54,16 +54,16 @@
   </main>
 
   <script>
-    // Surface detection: super-admin domain hides the License Key field
-    // entirely; the tenant-admin (or any other) domain shows it. Page
-    // header text adjusts so admins know which surface they're on.
+    // Surface detection by path:
+    //   /super/login.html → 超级管理员（无 License Key 字段）
+    //   /admin/login.html → 企业管理员（保留 License Key 字段）
+    // The two paths serve the same file; this script branches based on
+    // location.pathname so admins know which surface they're on.
     (function () {
-      const host = (location.hostname || '').toLowerCase();
-      const isSuperHost =
-        host === 'license.netclawsec.com.cn' || host.startsWith('license.');
+      const isSuperPath = (location.pathname || '').toLowerCase().startsWith('/super/');
       const t = document.getElementById('page-title');
       const s = document.getElementById('page-subtitle');
-      if (isSuperHost) {
+      if (isSuperPath) {
         document.title = '超级管理员 · 登录';
         if (t) t.textContent = '超级管理员';
         if (s) s.textContent = '管理租户、License、安装包发布';
