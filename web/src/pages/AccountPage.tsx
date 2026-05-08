@@ -151,19 +151,24 @@ export default function AccountPage() {
       </Card>
 
       <Card className="rounded-xl">
-        <CardHeader>
-          <CardTitle>授权 License</CardTitle>
-          <CardDescription>
-            管理后台：
-            <a
-              href="https://license.netclawsec.com.cn/admin/login.html"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-primary hover:underline ml-1"
-            >
-              license.netclawsec.com.cn/admin/login.html
-            </a>
-          </CardDescription>
+        <CardHeader className="flex-row items-start justify-between gap-3">
+          <div>
+            <CardTitle>授权 License</CardTitle>
+            <CardDescription>当前订阅状态（来自 License Server）</CardDescription>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() =>
+              window.open(
+                "https://license.netclawsec.com.cn/admin/login.html",
+                "_blank",
+                "noopener,noreferrer",
+              )
+            }
+          >
+            打开管理后台
+          </Button>
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
           {licLoading ? (
@@ -188,9 +193,6 @@ export default function AccountPage() {
               )}
               {license.error && (
                 <div className="text-xs text-destructive">错误：{license.error}</div>
-              )}
-              {license.server && (
-                <div className="text-[0.7rem] text-muted-foreground">License server: {license.server}</div>
               )}
             </>
           ) : (

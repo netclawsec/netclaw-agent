@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { usePlugins } from "@/plugins";
 import { MainShell } from "@/components/shell/MainShell";
+import { AuthGate } from "@/components/AuthGate";
 
 // New product pages
 import LoginPage from "@/pages/LoginPage";
@@ -38,9 +39,11 @@ export default function App() {
     );
   }
 
-  // Main app: MainShell wraps every primary product route.
-  // Landing route '/' redirects to AI 员工 (the headline product surface).
+  // Main app: MainShell wraps every primary product route. AuthGate blocks
+  // every non-login route until /api/employee/whoami confirms a live session,
+  // and force-redirects unauthenticated users to /login.
   return (
+    <AuthGate>
     <MainShell>
       <Routes>
         <Route path="/" element={<Navigate to="/agent-chat" replace />} />
@@ -90,5 +93,6 @@ export default function App() {
         <Route path="*" element={<Navigate to="/agent-chat" replace />} />
       </Routes>
     </MainShell>
+    </AuthGate>
   );
 }

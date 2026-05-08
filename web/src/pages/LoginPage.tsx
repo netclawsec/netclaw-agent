@@ -223,18 +223,24 @@ export default function LoginPage() {
             </label>
           </form>
 
-          <p className="text-[0.65rem] text-muted-foreground">
-            认证服务：
-            <a
-              href="https://license.netclawsec.com.cn/admin/login.html"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-primary hover:underline"
+          <div className="flex items-center justify-between gap-2 pt-1">
+            <span className="text-[0.65rem] text-muted-foreground">企业管理员入口</span>
+            <Button
+              size="sm"
+              variant="ghost"
+              type="button"
+              className="h-7 px-2 text-[0.7rem]"
+              onClick={() =>
+                window.open(
+                  "https://license.netclawsec.com.cn/admin/login.html",
+                  "_blank",
+                  "noopener,noreferrer",
+                )
+              }
             >
-              license.netclawsec.com.cn
-            </a>
-            （多租户）
-          </p>
+              打开管理后台
+            </Button>
+          </div>
         </div>
       </div>
 
