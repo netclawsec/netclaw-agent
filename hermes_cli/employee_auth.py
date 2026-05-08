@@ -22,6 +22,7 @@ from __future__ import annotations
 import base64
 import json
 import os
+import re
 import sys
 import urllib.error
 import urllib.request
@@ -46,6 +47,8 @@ from hermes_cli.license import (
 BUNDLE_SCHEMA_VERSION = 1
 AUTH_STATE_VERSION = 1
 REFRESH_WITHIN_SECONDS = 6 * 3600  # refresh JWT if it expires in <6h
+ANONYMOUS_EMPLOYEE_ID = "_anonymous"
+_EMPLOYEE_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")
 
 
 class EmployeeAuthError(RuntimeError):
@@ -105,15 +108,34 @@ class EmployeeState:
 # ---------------------------------------------------------------------------
 
 
-def bundle_path() -> Optional[Path]:
-    """Locate bundle.json: env override → _MEIPASS → netclaw_home → None.
+def tenant_json_path() -> Path:
+    """Runtime tenant config cache (universal-binary flow).
 
-    None means "generic build" — caller falls back to NCLW single-machine flow.
+    Populated by ``save_tenant_json`` after the user enters an invite code
+    in the onboarding wizard. Survives restarts; cleared on logout.
+    """
+    return get_hermes_home() / "tenant.json"
+
+
+def bundle_path() -> Optional[Path]:
+    """Locate tenant config: env override → tenant.json → _MEIPASS → bundle.json → None.
+
+    Order rationale:
+    1. ``NETCLAW_BUNDLE_JSON`` env var — explicit override, e.g. dev/test
+    2. ``~/.netclaw/tenant.json`` — runtime-resolved (universal binary)
+    3. ``_MEIPASS/bundle.json`` — PyInstaller-bundled (legacy per-tenant build)
+    4. ``~/.netclaw/bundle.json`` — installer drop (legacy per-tenant build)
+    None means "generic build, no tenant configured yet" — caller routes to
+    the onboarding "enter invite code" step.
     """
     override = os.getenv("NETCLAW_BUNDLE_JSON")
     if override:
         p = Path(override).expanduser()
         return p if p.is_file() else None
+
+    runtime = tenant_json_path()
+    if runtime.is_file():
+        return runtime
 
     meipass = getattr(sys, "_MEIPASS", None)
     if meipass:
@@ -123,6 +145,40 @@ def bundle_path() -> Optional[Path]:
 
     p = get_hermes_home() / "bundle.json"
     return p if p.is_file() else None
+
+
+def save_tenant_json(bundle: Bundle) -> None:
+    """Persist a server-resolved tenant config to disk.
+
+    Same shape as ``bundle.json``; ``load_bundle`` reads it transparently.
+    """
+    payload = {
+        "schema_version": bundle.schema_version,
+        "tenant_id": bundle.tenant_id,
+        "tenant_slug": bundle.tenant_slug,
+        "tenant_name": bundle.tenant_name,
+        "license_server": bundle.license_server,
+        "require_invite_code": bundle.require_invite_code,
+        "departments": list(bundle.departments),
+        "built_at": bundle.built_at,
+        "build_signature": bundle.build_signature,
+    }
+    path = tenant_json_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+    os.replace(tmp, path)
+    try:
+        os.chmod(path, 0o600)
+    except OSError:
+        pass
+
+
+def clear_tenant_json() -> None:
+    try:
+        tenant_json_path().unlink()
+    except FileNotFoundError:
+        pass
 
 
 def load_bundle() -> Optional[Bundle]:
@@ -203,6 +259,77 @@ def load_auth_state() -> Optional[EmployeeState]:
         )
     except (KeyError, TypeError, ValueError):
         return None
+
+
+def _valid_employee_id(value: object) -> Optional[str]:
+    if not isinstance(value, str):
+        return None
+    employee_id = value.strip()
+    if not employee_id or not _EMPLOYEE_ID_RE.fullmatch(employee_id):
+        return None
+    return employee_id
+
+
+def employee_data_root() -> Path:
+    """Return the active employee's private data root, creating it on demand."""
+    state = load_auth_state()
+    employee_id = (
+        _valid_employee_id(state.employee_id) if state is not None else None
+    ) or ANONYMOUS_EMPLOYEE_ID
+    employees_dir = get_hermes_home() / "employees"
+    root = employees_dir / employee_id
+    employees_dir.mkdir(parents=True, exist_ok=True)
+    root.mkdir(parents=True, exist_ok=True)
+    try:
+        os.chmod(employees_dir, 0o700)
+        os.chmod(root, 0o700)
+    except OSError:
+        pass
+    return root
+
+
+class EmployeeDataPath(os.PathLike):
+    """Path-like proxy resolved under ``employee_data_root()`` when used."""
+
+    def __init__(self, *parts: str):
+        self._parts = tuple(str(part) for part in parts)
+
+    def _path(self) -> Path:
+        return employee_data_root().joinpath(*self._parts)
+
+    def __fspath__(self) -> str:
+        return os.fspath(self._path())
+
+    def __truediv__(self, part: str) -> "EmployeeDataPath":
+        return EmployeeDataPath(*self._parts, str(part))
+
+    def __getattr__(self, name: str):
+        return getattr(self._path(), name)
+
+    def __str__(self) -> str:
+        return str(self._path())
+
+    def __repr__(self) -> str:
+        return repr(self._path())
+
+    def __eq__(self, other: object) -> bool:
+        try:
+            return self._path() == Path(other)  # type: ignore[arg-type]
+        except TypeError:
+            return False
+
+
+def ensure_employee_data_dirs() -> Path:
+    """Ensure standard per-employee data directories exist."""
+    root = employee_data_root()
+    for subdir in ("sessions", "webui/sessions", "memories", "skills", "cron"):
+        path = root / subdir
+        path.mkdir(parents=True, exist_ok=True)
+        try:
+            os.chmod(path, 0o700)
+        except OSError:
+            pass
+    return root
 
 
 def save_auth_state(state: EmployeeState) -> None:
@@ -294,6 +421,43 @@ def _request_json(
         return err.code, data
 
 
+def fetch_tenant_by_invite(server: str, code: str) -> Bundle:
+    """Resolve an invite code to a tenant config via the license server.
+
+    Hits ``GET /api/employee/tenant-by-invite?code=…`` (no auth, rate-limited
+    by IP). Returns a Bundle ready to feed ``save_tenant_json``. Does NOT
+    consume the invite — that happens on ``register``.
+    """
+    url = f"{server.rstrip('/')}/api/employee/tenant-by-invite?code={code}"
+    status, body = _request_json("GET", url)
+    if status != 200 or not body.get("success"):
+        err = (
+            (body.get("error") or "unknown_error")
+            if isinstance(body, dict)
+            else "unknown_error"
+        )
+        msg = (body.get("message") or err) if isinstance(body, dict) else err
+        raise EmployeeAuthError(msg)
+    required = ("tenant_id", "tenant_slug", "tenant_name", "license_server")
+    missing = [k for k in required if not body.get(k)]
+    if missing:
+        raise EmployeeAuthError(f"tenant resolve missing: {', '.join(missing)}")
+    departments = body.get("departments") or []
+    if not isinstance(departments, list):
+        raise EmployeeAuthError("tenant resolve 'departments' must be a list")
+    return Bundle(
+        schema_version=int(body.get("schema_version") or BUNDLE_SCHEMA_VERSION),
+        tenant_id=body["tenant_id"],
+        tenant_slug=body["tenant_slug"],
+        tenant_name=body["tenant_name"],
+        license_server=str(body["license_server"]).rstrip("/"),
+        require_invite_code=bool(body.get("require_invite_code", True)),
+        departments=tuple(departments),
+        built_at=None,
+        build_signature=None,
+    )
+
+
 def _state_from_login_response(
     body: dict, *, server: str, fingerprint: str
 ) -> EmployeeState:
@@ -367,6 +531,7 @@ def register(
         raise EmployeeAuthError(_format_err("register failed", status, body))
     state = _state_from_login_response(body, server=server, fingerprint=fp)
     save_auth_state(state)
+    ensure_employee_data_dirs()
     return state
 
 
@@ -376,6 +541,7 @@ def login(
     password: str,
     bundle: Optional[Bundle] = None,
     fingerprint: Optional[str] = None,
+    tenant_slug: Optional[str] = None,
 ) -> EmployeeState:
     bundle = bundle or load_bundle()
     fp = fingerprint or machine_fingerprint()
@@ -386,7 +552,12 @@ def login(
         "machine_fingerprint": fp,
     }
     if bundle is not None:
+        # Per-tenant installer (bundle.json baked in) — wins over user input.
         payload["tenant_id"] = bundle.tenant_id
+    elif tenant_slug:
+        # Generic / universal install — user typed the company code into the
+        # LoginPage form. License-server resolves slug → tenant_id.
+        payload["tenant_slug"] = tenant_slug.strip().lower()
     status, body = _request_json(
         "POST", f"{server}/api/employee/login", payload=payload
     )
@@ -394,6 +565,7 @@ def login(
         raise EmployeeAuthError(_format_err("login failed", status, body))
     state = _state_from_login_response(body, server=server, fingerprint=fp)
     save_auth_state(state)
+    ensure_employee_data_dirs()
     # Login response carries no department info — backfill from /me so the
     # local cache + status line are populated. Best-effort: a failure here
     # doesn't invalidate the just-saved session.
@@ -546,6 +718,10 @@ __all__ = [
     "LicenseError",
     "load_bundle",
     "bundle_path",
+    "tenant_json_path",
+    "save_tenant_json",
+    "clear_tenant_json",
+    "fetch_tenant_by_invite",
     "server_base",
     "load_auth_state",
     "save_auth_state",

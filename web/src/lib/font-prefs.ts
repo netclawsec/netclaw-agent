@@ -54,11 +54,11 @@ export interface SizePreset {
 }
 
 export const SIZE_PRESETS: SizePreset[] = [
-  { id: "compact", label: "紧凑", basePx: 13 },
-  { id: "default", label: "标准", basePx: 14 },
-  { id: "comfortable", label: "舒适", basePx: 15 },
-  { id: "large", label: "放大", basePx: 16 },
-  { id: "xl", label: "超大", basePx: 18 },
+  { id: "compact", label: "紧凑", basePx: 14 },
+  { id: "default", label: "标准", basePx: 16 },
+  { id: "comfortable", label: "舒适", basePx: 17 },
+  { id: "large", label: "放大", basePx: 18 },
+  { id: "xl", label: "超大", basePx: 20 },
 ];
 
 export interface FontPrefs {

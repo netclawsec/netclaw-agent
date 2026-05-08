@@ -131,6 +131,23 @@ def main() -> int:
         )
         return 1
 
+    # JS bridge — exposes Python-callable methods to the SPA via
+    # window.pywebview.api.<method>(...). The "打开管理后台" button calls
+    # `open_external(url)` which spawns the system default browser, since
+    # window.open(url) inside pywebview is a no-op for non-allow-listed
+    # cross-origin URLs.
+    class _PyApi:
+        def open_external(self, url: str) -> bool:
+            import webbrowser
+
+            if not isinstance(url, str) or not url.startswith(("http://", "https://")):
+                return False
+            try:
+                webbrowser.open(url, new=2)
+                return True
+            except Exception:
+                return False
+
     webview.create_window(
         "NetClaw Agent",
         url,
@@ -140,6 +157,7 @@ def main() -> int:
         maximized=True,
         resizable=True,
         confirm_close=False,
+        js_api=_PyApi(),
     )
     webview.start(gui="cocoa", debug=False)
 

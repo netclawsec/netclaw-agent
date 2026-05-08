@@ -28,12 +28,19 @@ const registerSchema = z.object({
   display_name: z.string().max(100).optional()
 });
 
+// Login accepts either tenant_id (UUID, used by per-tenant builds with a baked
+// bundle.json) OR tenant_slug (org code, used by the generic universal build
+// where the user types the company code directly into the LoginPage form).
 const loginSchema = z.object({
-  tenant_id: z.string().min(1).max(64),
+  tenant_id: z.string().min(1).max(64).optional(),
+  tenant_slug: z.string().min(1).max(64).optional(),
   username: z.string().min(3).max(64),
   password: z.string().min(1).max(200),
   machine_fingerprint: z.string().regex(FP_RE)
-});
+}).refine(
+  (data) => Boolean(data.tenant_id) || Boolean(data.tenant_slug),
+  { message: 'tenant_id or tenant_slug is required', path: ['tenant_id'] }
+);
 
 const changePasswordSchema = z.object({
   old_password: z.string().min(1).max(200),
@@ -42,6 +49,10 @@ const changePasswordSchema = z.object({
 
 const refreshSchema = z.object({
   machine_fingerprint: z.string().regex(FP_RE)
+});
+
+const resolveInviteSchema = z.object({
+  code: z.string().min(4).max(16)
 });
 
 // ----- Helpers --------------------------------------------------------------
@@ -164,7 +175,16 @@ async function login(req, res) {
   if (!parsed.success) {
     return badError(res, 'invalid_body', JSON.stringify(parsed.error.issues));
   }
-  const tenant = ensureTenantActive(parsed.data.tenant_id, res);
+  // Resolve tenant: prefer tenant_id (UUID); fall back to tenant_slug.
+  let tenantId = parsed.data.tenant_id;
+  if (!tenantId && parsed.data.tenant_slug) {
+    const bySlug = tenantsRepo.getTenantBySlug(parsed.data.tenant_slug.trim().toLowerCase());
+    if (!bySlug) {
+      return badError(res, 'tenant_not_found', 'unknown organization code', 404);
+    }
+    tenantId = bySlug.id;
+  }
+  const tenant = ensureTenantActive(tenantId, res);
   if (!tenant) return;
   let emp;
   try {
@@ -241,6 +261,59 @@ function logout(req, res) {
   return res.json({ success: true });
 }
 
+// Public endpoint used by the universal installer's onboarding flow:
+// employee enters an 8-char invite code, agent calls this to resolve which
+// tenant + branding to apply. Does NOT consume the invite — that happens
+// only on /register. Mirrors the bundle.json shape that the per-tenant
+// installer used to bake in, so downstream agent code doesn't need to
+// know whether config came from disk or from the network.
+function tenantByInvite(req, res) {
+  const parsed = resolveInviteSchema.safeParse(req.query || {});
+  if (!parsed.success) {
+    return badError(res, 'invalid_query', JSON.stringify(parsed.error.issues));
+  }
+  let invite;
+  try {
+    invite = inviteCodesRepo.getByCode(parsed.data.code);
+  } catch {
+    return badError(res, 'invite_not_found', 'invite code not recognized', 404);
+  }
+  if (!invite) return badError(res, 'invite_not_found', 'invite code not recognized', 404);
+  if (invite.used_at) return badError(res, 'invite_already_used', 'invite code already used');
+  if (Date.parse(invite.expires_at) < Date.now()) {
+    return badError(res, 'invite_expired', 'invite code has expired');
+  }
+  const tenant = tenantsRepo.getTenant(invite.tenant_id);
+  if (!tenant || tenant.status !== 'active') {
+    return badError(res, 'tenant_unavailable', 'tenant is not active', 403);
+  }
+  const departments = departmentsRepo
+    .listDepartments(tenant.id)
+    .filter((d) => d.status === 'active')
+    .map((d) => ({ id: d.id, name: d.name, abbrev: d.abbrev }));
+  const inviteDept = departmentsRepo.getDepartment(invite.department_id);
+  const license_server =
+    process.env.BUILD_DEFAULT_LICENSE_SERVER ||
+    `${req.protocol}://${req.get('host')}`;
+  return res.json({
+    success: true,
+    schema_version: 1,
+    tenant_id: tenant.id,
+    tenant_slug: tenant.slug,
+    tenant_name: tenant.name,
+    license_server,
+    require_invite_code: true,
+    departments,
+    invite: {
+      department: inviteDept
+        ? { id: inviteDept.id, name: inviteDept.name, abbrev: inviteDept.abbrev }
+        : null,
+      raw_username: invite.raw_username,
+      display_name: invite.display_name
+    }
+  });
+}
+
 module.exports = {
   requireEmployee,
   register,
@@ -248,5 +321,6 @@ module.exports = {
   me,
   refresh,
   changePassword,
-  logout
+  logout,
+  tenantByInvite
 };

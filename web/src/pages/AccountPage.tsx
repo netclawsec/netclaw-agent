@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
+import { openExternal } from "@/lib/external";
 
 interface WhoAmI {
   logged_in?: boolean;
@@ -20,8 +21,6 @@ interface WhoAmI {
   employee?: {
     username?: string;
     display_name?: string;
-    department_name?: string;
-    department_abbrev?: string;
     tenant_id?: string;
   };
   expires_at?: string;
@@ -99,8 +98,8 @@ export default function AccountPage() {
               {me.email && <Field icon={Mail} label="邮箱" value={me.email} />}
               <Field
                 icon={Building2}
-                label="部门"
-                value={me.employee?.department_name ?? me.tenant_name ?? me.tenant_slug ?? "—"}
+                label="所属企业"
+                value={me.tenant_name ?? me.tenant_slug ?? "—"}
               />
               {me.role && <Field icon={ShieldCheck} label="角色" value={me.role} />}
               {me.expires_at && (
@@ -159,13 +158,7 @@ export default function AccountPage() {
           <Button
             size="sm"
             variant="outline"
-            onClick={() =>
-              window.open(
-                "https://license.netclawsec.com.cn/admin/login.html",
-                "_blank",
-                "noopener,noreferrer",
-              )
-            }
+            onClick={() => openExternal("https://netclawsec.com.cn/login")}
           >
             打开管理后台
           </Button>

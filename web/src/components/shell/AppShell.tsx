@@ -106,7 +106,7 @@ export function AppShell({
           rightSlot={topbarRight}
           onMenuClick={() => setMobileOpen((v) => !v)}
         />
-        <main className="flex-1 overflow-x-hidden p-5">{children}</main>
+        <main className="flex-1 overflow-x-hidden p-3 sm:p-4">{children}</main>
       </div>
     </div>
   );
