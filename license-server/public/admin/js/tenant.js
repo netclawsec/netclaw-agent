@@ -46,6 +46,33 @@
     if (json.admin.role !== 'tenant_admin') { window.location.href = './super.html'; return; }
     $('me-label').textContent = `${json.admin.username}${json.admin.display_name ? ' · ' + json.admin.display_name : ''}`;
     $('tenant-name-badge').textContent = json.tenant ? json.tenant.name : '';
+    // Surface the tenant slug as 组织代码 — both as a small badge in the
+    // header and as a big call-out card on the overview tab. Tenant admins
+    // share this code with employees for the NetClaw Agent app login.
+    const slug = json.tenant?.slug || '';
+    if (slug) {
+      const slugBadge = $('tenant-slug-badge');
+      if (slugBadge) {
+        slugBadge.textContent = slug;
+        slugBadge.classList.remove('hidden');
+      }
+      const slugValue = $('org-code-value');
+      if (slugValue) slugValue.textContent = slug;
+      const copyBtn = $('org-code-copy');
+      if (copyBtn) {
+        copyBtn.onclick = async () => {
+          try {
+            await navigator.clipboard.writeText(slug);
+            const originalText = copyBtn.textContent;
+            copyBtn.textContent = '已复制';
+            setTimeout(() => { copyBtn.textContent = originalText; }, 1500);
+          } catch {
+            // Fallback: select text manually
+            window.prompt('复制下面的组织代码:', slug);
+          }
+        };
+      }
+    }
   }
 
   async function loadDashboard() {

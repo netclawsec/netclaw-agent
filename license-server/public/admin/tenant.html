@@ -24,8 +24,11 @@
     <div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
       <div class="flex items-center gap-3">
         <span class="text-2xl">🐾</span>
-        <h1 class="text-lg font-semibold">NetClaw 公司管理后台</h1>
+        <h1 class="text-lg font-semibold">NetClaw 企业管理后台</h1>
         <span id="tenant-name-badge" class="ml-3 text-sm text-slate-500"></span>
+        <span id="tenant-slug-badge"
+              class="hidden font-mono text-xs px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-100"
+              title="组织代码 — 员工在 NetClaw Agent 登录时填写"></span>
       </div>
       <div class="flex items-center gap-4 text-sm">
         <span id="me-label" class="text-slate-600"></span>
@@ -47,6 +50,24 @@
 
   <main class="max-w-6xl mx-auto px-6 py-8">
     <section id="tab-overview" class="tab-panel active space-y-6">
+      <!-- Org code call-out — surfaced prominently so tenant admins can copy
+           and share with their employees for the NetClaw Agent app login. -->
+      <div id="org-code-card"
+           class="bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 rounded-lg px-5 py-4 flex items-center justify-between">
+        <div>
+          <div class="text-xs text-indigo-700/70 font-medium">组织代码 · 员工 NetClaw Agent 登录用</div>
+          <div class="mt-1 flex items-center gap-3">
+            <span id="org-code-value" class="text-xl font-mono font-bold text-indigo-900">—</span>
+            <button id="org-code-copy"
+                    class="text-xs px-2 py-1 bg-white border border-indigo-200 text-indigo-700 hover:bg-indigo-50 rounded">
+              复制
+            </button>
+          </div>
+        </div>
+        <div class="text-xs text-slate-500 max-w-xs">
+          员工打开 NetClaw Agent 桌面应用，在登录页填写此组织代码 + 用户名 + 密码即可。
+        </div>
+      </div>
       <div id="dashboard" class="grid grid-cols-1 md:grid-cols-4 gap-4"></div>
       <div id="overview-extras" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
     </section>
@@ -163,26 +184,22 @@
     </section>
 
     <section id="tab-installers" class="tab-panel space-y-4">
-      <h2 class="text-xl font-semibold">专属安装包</h2>
-      <div class="flex items-center justify-between">
-        <p class="text-xs text-slate-500">为本公司打专属安装包：自动写入 license server 地址、tenant 信息，员工拿到后直接装即可，无需手填激活码。</p>
-        <button id="open-build-installer" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm px-4 py-2 rounded-md">+ 构建专属安装包</button>
-      </div>
-      <div class="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
-        <table class="w-full text-sm">
-          <thead class="bg-slate-50 text-slate-600 text-left">
-            <tr>
-              <th class="px-4 py-3 font-medium">build_id</th>
-              <th class="px-4 py-3 font-medium">租户 / 部门数</th>
-              <th class="px-4 py-3 font-medium">状态</th>
-              <th class="px-4 py-3 font-medium">构建时间</th>
-              <th class="px-4 py-3 font-medium">下载</th>
-            </tr>
-          </thead>
-          <tbody id="builds-tbody" class="divide-y divide-slate-100">
-            <tr><td colspan="5" class="px-4 py-12 text-center text-slate-400">还没有构建记录</td></tr>
-          </tbody>
-        </table>
+      <h2 class="text-xl font-semibold">员工安装包</h2>
+      <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-5 space-y-4">
+        <p class="text-sm text-slate-600 leading-6">所有员工使用同一个 NetClaw Agent 通用安装包。在【员工】tab 生成邀请码后，把下载链接和邀请码发给员工：员工首次启动会输入邀请码自动加入您的公司。</p>
+        <div class="space-y-2">
+          <div class="flex flex-col md:flex-row gap-2 items-center">
+            <span class="text-xs text-slate-500 w-20 shrink-0">Windows</span>
+            <input id="employee-installer-url" type="text" readonly value="http://120.55.247.72/downloads/installer-universal-latest" class="flex-1 border border-slate-300 rounded px-3 py-2 text-sm font-mono text-slate-700 bg-slate-50" />
+            <button id="open-build-installer" type="button" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm px-4 py-2 rounded-md whitespace-nowrap">复制</button>
+          </div>
+          <div class="flex flex-col md:flex-row gap-2 items-center">
+            <span class="text-xs text-slate-500 w-20 shrink-0">macOS</span>
+            <input id="employee-installer-url-mac" type="text" readonly value="http://120.55.247.72/downloads/installer-mac-latest" class="flex-1 border border-slate-300 rounded px-3 py-2 text-sm font-mono text-slate-700 bg-slate-50" />
+            <button id="copy-mac-url" type="button" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm px-4 py-2 rounded-md whitespace-nowrap">复制</button>
+          </div>
+        </div>
+        <p class="text-xs text-slate-500">macOS 包未经 Apple 公证，首次打开时右键点击 "打开"，弹窗里再次确认 "打开"。Windows 包直接双击安装。</p>
       </div>
     </section>
   </main>
