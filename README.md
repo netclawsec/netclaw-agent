@@ -63,7 +63,7 @@ git clone https://github.com/netclawsec/netclaw-agent.git
 cd netclaw-agent
 pip install -e .
 cd web && npm install && npm run build
-netclaw web                # 启动 webui，默认 http://localhost:9119
+netclaw dashboard          # 启动 webui，默认 http://localhost:9119
 ```
 
 ---
@@ -75,7 +75,6 @@ netclaw web                # 启动 webui，默认 http://localhost:9119
   - **租户管理员** 自助签发 NCLW key / 管理员工 / 看激活状态
   - **员工** 用 username + password 登录，JWT 24h 续期
 - **激活方式**：员工登录后自动激活，或 CLI `netclaw license activate <NCLW-KEY>`
-- 详见 [`license-server/MULTI-TENANT.md`](./license-server/MULTI-TENANT.md)
 
 ---
 
@@ -125,7 +124,7 @@ netclaw-agent/
 ├─ hermes_cli/        # CLI + license + employee auth
 ├─ packaging/
 │  ├─ macos/          # .app + DMG 打包脚本
-│  └─ windows/        # MSI 打包脚本
+│  └─ windows/        # Inno Setup (Setup.exe) 打包脚本
 ├─ license-server/    # 多租户 License Server (Node)
 ├─ agent/             # Agent 内核（prompt builder / 工具）
 ├─ acp_adapter/       # Agent ↔ MCP 协议适配
@@ -138,11 +137,8 @@ netclaw-agent/
 
 ## 🤝 合作 / 商务
 
-- **官网**：[netclawsec.com](https://netclawsec.com)
-- **公司**：网钳科技（北京）有限公司 · 注册号 91110105099700839N
-- **地址**：北京市朝阳区望京 SOHO 塔 2A 座 1511 室
-- **邮箱**：beilei.zhang@netclawsec.com
-- **电话**：010-53678223
+- **官网**：[netclawsec.com](https://netclawsec.com) — 公司、产品介绍与商务联系都在官网
+- **安全披露**：security@netclawsec.com
 
 ---
 
