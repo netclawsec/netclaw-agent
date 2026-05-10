@@ -82,6 +82,26 @@ hiddenimports = [
     # pywebview cocoa backend
     "webview.platforms.cocoa",
 
+    # New batch-edit pipeline (deferred import in routes.py)
+    "api.batch_edit",
+    # SSRF-safe URL fetcher (deferred import in studio routes)
+    "api.url_safety",
+    # Engagement automation rules (deferred import in routes.py)
+    "api.engagement",
+    # Multi-account registry (deferred import in routes.py)
+    "api.accounts",
+    # Publish worker spawned at server start (deferred import)
+    "api.publish_worker",
+
+    # Cocoa Edit menu installer in app_launcher uses Foundation.NSTimer +
+    # AppKit (NSApplication / NSMenu / NSMenuItem). Both are picked up by
+    # `import webview` already so no extra hiddenimports needed.
+
+    # Aliyun OSS SDK — ContentStudio uploads local reference images to a
+    # public-read bucket so the qixin/happyhorse models can fetch them.
+    "oss2",
+    "aliyunsdkcore",
+
     # hermes subpackages that may only be imported via string lookup
     "hermes_cli",
     "hermes_cli.main",

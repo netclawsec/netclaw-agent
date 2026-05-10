@@ -40,6 +40,18 @@ def _guard():
 def _public_state(state) -> dict[str, Any]:
     if state is None:
         return {"logged_in": False}
+    # Look up the tenant bundle so the SPA can show "所属企业 = 奇树科技"
+    # without making a second round-trip to /api/bundle.
+    tenant_slug: str | None = None
+    tenant_name: str | None = None
+    if ea is not None:
+        try:
+            bundle = ea.load_bundle()
+            if bundle is not None:
+                tenant_slug = bundle.tenant_slug
+                tenant_name = bundle.tenant_name
+        except Exception:
+            pass
     return {
         "logged_in": True,
         "employee": {
@@ -51,6 +63,11 @@ def _public_state(state) -> dict[str, Any]:
             "department_name": state.department_name,
             "department_abbrev": state.department_abbrev,
         },
+        # Top-level mirrors of tenant info so AccountPage / MainShell can
+        # read `me.tenant_name` directly. The qishu employee account, for
+        # example, surfaces as "奇树科技".
+        "tenant_slug": tenant_slug,
+        "tenant_name": tenant_name,
         "expires_at": state.expires_at,
         "server": state.server,
     }
@@ -105,6 +122,17 @@ def handle_whoami(handler) -> bool:
         state = ea.load_auth_state()
     except Exception as err:
         return j(handler, {"error": "auth_read_failed", "detail": str(err)}, status=500)
+    # Silent JWT refresh: if the token will expire inside the refresh window
+    # (REFRESH_WITHIN_SECONDS = 6h by default) call /api/employee/refresh and
+    # persist the new token. We swallow refresh errors — the worst case is
+    # the user gets a stale token and `_public_state(state)` will report
+    # logged_in=False once the JWT actually expires, prompting re-login.
+    if state is not None and state.needs_refresh() and not state.is_expired():
+        try:
+            state = ea.refresh(state)
+        except Exception:
+            # Best-effort: don't break whoami if the license server is down.
+            pass
     return j(handler, _public_state(state))
 
 

@@ -10,12 +10,15 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
+import threading
 import time
 import uuid
 from pathlib import Path
 from typing import Any
 
 from api.helpers import j, read_body
+
+_QUEUE_LOCK = threading.Lock()
 
 OPENCLI_BIN = shutil.which("opencli") or "/opt/homebrew/bin/opencli"
 SOCIAL_STATE_DIR = Path.home() / ".netclaw" / "web"
@@ -44,9 +47,18 @@ def _load_json(path: Path, default: Any) -> Any:
 
 
 def _save_json(path: Path, data: Any) -> None:
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-    tmp.replace(path)
+    # Use a uuid-suffixed tmp file so two writers racing on the same target
+    # don't truncate each other's tmp before either rename completes.
+    tmp = path.with_suffix(f"{path.suffix}.{uuid.uuid4().hex[:8]}.tmp")
+    try:
+        tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        tmp.replace(path)
+    finally:
+        if tmp.exists():
+            try:
+                tmp.unlink()
+            except OSError:
+                pass
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -190,7 +202,6 @@ def handle_publish_queue_post(handler) -> bool:
     except ValueError as exc:
         return j(handler, {"error": str(exc)}, status=400)
 
-    queue = _load_json(QUEUE_FILE, [])
     item = {
         "id": str(uuid.uuid4()),
         "title": title,
@@ -201,9 +212,111 @@ def handle_publish_queue_post(handler) -> bool:
         "status": "pending",
         "created_at": int(time.time()),
     }
-    queue.append(item)
-    _save_json(QUEUE_FILE, queue)
+    # Lock the read-modify-write so this route doesn't race with publish-batch
+    # (both target QUEUE_FILE; codex review flagged this gap).
+    with _QUEUE_LOCK:
+        queue = _load_json(QUEUE_FILE, [])
+        queue.append(item)
+        _save_json(QUEUE_FILE, queue)
     return j(handler, item, status=201)
+
+
+def handle_publish_batch(handler) -> bool:
+    """POST /api/social/publish-batch — fan-out one item to multiple platforms.
+
+    Body:
+      {
+        title: str,
+        video_path: str,
+        caption?: str,
+        scheduled_at?: str,
+        targets: [{platform, account_idx?}, ...]
+      }
+
+    Each target produces an independent queue row so the operator can track
+    per-platform status. Heavy lifting (real publish) stays in the existing
+    single-target opencli flow — this route only enqueues.
+    """
+    try:
+        body = read_body(handler) or {}
+        title = _require_field(body, "title")
+        # video_path is required — without it the queue row can never be
+        # acted on by the worker. Codex review flagged a UI bug that let it
+        # through empty; reject at the boundary so frontend bugs surface fast.
+        video_path = _require_field(body, "video_path")
+        targets = body.get("targets") or []
+        if not isinstance(targets, list) or not targets:
+            raise ValueError("targets[] must be a non-empty list")
+    except ValueError as exc:
+        return j(handler, {"error": str(exc)}, status=400)
+
+    # Validate every target up front so a single bad row rejects the batch
+    # rather than silently dropping it (caller never learns the row was lost).
+    now = int(time.time())
+    scheduled_at = body.get("scheduled_at", "")
+    cover = body.get("cover", "")
+    poi_name = body.get("poi_name", "")
+    visibility = body.get("visibility", "public")
+    if visibility not in ("public", "friends", "private"):
+        visibility = "public"
+    topics_raw = body.get("topics") or []
+    topics: list[str] = (
+        [
+            str(t).strip().lstrip("#")
+            for t in topics_raw
+            if isinstance(t, str) and t.strip()
+        ][:10]
+        if isinstance(topics_raw, list)
+        else []
+    )
+    new_items: list[dict[str, Any]] = []
+    for i, t in enumerate(targets):
+        if not isinstance(t, dict):
+            return j(handler, {"error": f"targets[{i}] must be an object"}, status=400)
+        platform = str(t.get("platform") or "").strip()
+        if platform not in ("douyin", "xhs", "shipinhao"):
+            return j(
+                handler,
+                {"error": f"targets[{i}].platform invalid: {platform!r}"},
+                status=400,
+            )
+        try:
+            account_idx = int(t.get("account_idx") or 0)
+        except (TypeError, ValueError):
+            return j(
+                handler, {"error": f"targets[{i}].account_idx must be int"}, status=400
+            )
+        if account_idx < 0 or account_idx > 99:
+            return j(
+                handler, {"error": f"targets[{i}].account_idx out of range"}, status=400
+            )
+        new_items.append(
+            {
+                "id": str(uuid.uuid4()),
+                "title": title,
+                "platform": platform,
+                "target_account_idx": account_idx,
+                "video_path": video_path,
+                "caption": body.get("caption", ""),
+                "cover": cover,
+                "topics": topics,
+                "visibility": visibility,
+                "poi_name": poi_name,
+                "scheduled_at": scheduled_at,
+                "status": "pending",
+                "created_at": now,
+            }
+        )
+    if not new_items:
+        return j(handler, {"error": "no valid targets"}, status=400)
+
+    # Lock around the full read-modify-write so concurrent callers don't lose
+    # rows when their snapshots overlap.
+    with _QUEUE_LOCK:
+        queue = _load_json(QUEUE_FILE, [])
+        queue.extend(new_items)
+        _save_json(QUEUE_FILE, queue)
+    return j(handler, {"created": new_items, "count": len(new_items)}, status=201)
 
 
 def handle_reply_templates_get(handler) -> bool:
@@ -312,6 +425,76 @@ def handle_intercept_tasks(handler) -> bool:
     """GET /api/intercept/tasks — list past intercept tasks."""
     tasks = _load_json(INTERCEPT_TASKS_FILE, [])
     return j(handler, {"tasks": tasks[::-1]}, status=200)
+
+
+def handle_platforms(handler) -> bool:
+    """GET /api/social/platforms — return login state for the 3 social platforms.
+
+    Probes 抖音 via ``opencli douyin profile`` (only platform with a cheap
+    profile call). For 小红书 / 视频号 we don't have a cheap "am I logged in"
+    command, so we surface ``logged_in: null`` and let the user click through
+    to verify in their browser. The login URL list is static and matches what
+    the desktop sidebar offers.
+    """
+    platforms: list[dict[str, Any]] = []
+
+    # ── 抖音 (real probe) ────────────────────────────────────────────────
+    douyin: dict[str, Any] = {
+        "id": "douyin",
+        "name": "抖音",
+        "brand": "tiktok",
+        "login_url": "https://creator.douyin.com/",
+        "logged_in": None,
+        "nickname": None,
+        "detail": None,
+        "error": None,
+    }
+    if OPENCLI_BIN and Path(OPENCLI_BIN).exists():
+        result = _run_opencli(["douyin", "profile"], timeout=15)
+        if result.get("ok") and isinstance(result.get("data"), dict):
+            data = result["data"]
+            douyin["logged_in"] = bool(data.get("uid"))
+            douyin["nickname"] = data.get("nickname")
+            follower = data.get("follower_count")
+            aweme = data.get("aweme_count")
+            if follower is not None or aweme is not None:
+                bits = []
+                if follower is not None:
+                    bits.append(f"粉丝 {follower}")
+                if aweme is not None:
+                    bits.append(f"作品 {aweme}")
+                douyin["detail"] = " · ".join(bits)
+        elif result.get("ok") is False:
+            douyin["logged_in"] = False
+            douyin["error"] = (result.get("error") or "未登录或 cookies 已过期")[:200]
+    else:
+        douyin["error"] = "opencli 未安装"
+
+    platforms.append(douyin)
+
+    # ── 小红书 / 视频号 (URL-only, no cheap login probe available) ───────
+    platforms.append(
+        {
+            "id": "xhs",
+            "name": "小红书",
+            "brand": "xiaohongshu",
+            "login_url": "https://creator.xiaohongshu.com/login",
+            "logged_in": None,
+            "detail": "暂无快速检测命令，点击下方按钮在浏览器里确认登录态",
+        }
+    )
+    platforms.append(
+        {
+            "id": "shipinhao",
+            "name": "视频号",
+            "brand": "wechat",
+            "login_url": "https://channels.weixin.qq.com/",
+            "logged_in": None,
+            "detail": "暂无快速检测命令，点击下方按钮在浏览器里确认登录态",
+        }
+    )
+
+    return j(handler, {"platforms": platforms})
 
 
 def handle_doctor(handler) -> bool:

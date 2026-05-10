@@ -196,6 +196,7 @@ from api.upload import handle_upload, handle_transcribe
 from api.streaming import _sse, _run_agent_streaming, cancel_stream
 from api.social import (
     handle_publish_upload,
+    handle_publish_batch,
     handle_publish_queue_get,
     handle_publish_queue_post,
     handle_reply_templates_get,
@@ -205,6 +206,7 @@ from api.social import (
     handle_intercept_reply,
     handle_intercept_tasks,
     handle_doctor as handle_social_doctor,
+    handle_platforms as handle_social_platforms,
 )
 from api.onboarding import (
     apply_onboarding_setup,
@@ -472,6 +474,22 @@ def handle_get(handler, parsed) -> bool:
 
         return _agent_restart(handler)
 
+    if parsed.path == "/api/qxnav/models":
+        from api.qxnav import handle_models as _qxnav_models
+
+        return _qxnav_models(handler)
+
+    if parsed.path == "/api/workspace/default":
+        # Surface the WebUI's effective default workspace so the AgentChat
+        # composer can show the real cwd instead of the placeholder
+        # "默认工作目录" string.
+        return j(handler, {"workspace": str(DEFAULT_WORKSPACE)})
+
+    if parsed.path == "/api/qxnav/status":
+        from api.qxnav import handle_status as _qxnav_status
+
+        return _qxnav_status(handler, parsed)
+
     if parsed.path == "/favicon.ico":
         static_root = Path(__file__).parent.parent / "static"
         ico_path = (static_root / "favicon.ico").resolve()
@@ -538,6 +556,12 @@ def handle_get(handler, parsed) -> bool:
     # The Vite build emits these as `public/*` → `web_dist/*` (not under
     # /assets/), so they need their own match arm.
     if parsed.path in ("/logo.png", "/logo.svg", "/robots.txt"):
+        return _serve_spa_asset(handler, parsed, "/", _WEB_DIST_PATH)
+
+    # AI-generated nav/UI icons under web/public/icons → web_dist/icons.
+    # Without this, the SPA fallback below would return index.html and the
+    # browser's <img onError> would hide every sidebar logo.
+    if parsed.path.startswith("/icons/") and parsed.path.endswith(".png"):
         return _serve_spa_asset(handler, parsed, "/", _WEB_DIST_PATH)
 
     # ── SPA-compat adapters (for routes the new React SPA expects) ──────────
@@ -692,28 +716,19 @@ def handle_get(handler, parsed) -> bool:
         return j(handler, jobs)
 
     if parsed.path == "/api/dashboard/themes":
-        # Mirror the BUILTIN_THEMES list defined in web/src/themes/presets.ts so
-        # the dashboard ThemeSwitcher always sees every preset.
+        # Match the trimmed BUILTIN_THEMES in web/src/themes/presets.ts —
+        # only Light + Dark survive. The legacy presets (Hermes Dark,
+        # Midnight, Ember, Mono, Cyberpunk, Rose) were removed.
         themes_list = [
-            {"name": "default", "label": "Hermes Dark", "description": "经典深色"},
-            {
-                "name": "netclaw-light",
-                "label": "NetClaw Light",
-                "description": "默认浅色（紫色）",
-            },
-            {"name": "midnight", "label": "Midnight", "description": "深蓝"},
-            {"name": "ember", "label": "Ember", "description": "暖橙"},
-            {"name": "mono", "label": "Mono", "description": "纯单色"},
-            {"name": "cyberpunk", "label": "Cyberpunk", "description": "霓虹"},
-            {"name": "rose", "label": "Rose", "description": "玫粉"},
+            {"name": "netclaw-light", "label": "Light", "description": "浅色"},
+            {"name": "netclaw-dark", "label": "Dark", "description": "深色"},
         ]
-        return j(
-            handler,
-            {
-                "themes": themes_list,
-                "active": load_settings().get("theme") or "netclaw-light",
-            },
-        )
+        active = load_settings().get("theme") or "netclaw-light"
+        # Migrate any persisted legacy theme name to a sensible default so the
+        # picker never shows a "current=midnight" that no longer exists.
+        if active not in {"netclaw-light", "netclaw-dark"}:
+            active = "netclaw-light"
+        return j(handler, {"themes": themes_list, "active": active})
 
     if parsed.path == "/api/dashboard/plugins":
         return j(handler, [])
@@ -994,11 +1009,25 @@ def handle_get(handler, parsed) -> bool:
 
     # ── Skills API (GET) ──
     if parsed.path == "/api/skills":
-        from tools.skills_tool import skills_list as _skills_list
+        from tools.skills_tool import skills_list as _skills_list, _find_all_skills
 
-        raw = _skills_list()
-        data = json.loads(raw) if isinstance(raw, str) else raw
-        return j(handler, {"skills": data.get("skills", [])})
+        # `_find_all_skills(skip_disabled=True)` returns ALL skills (incl
+        # disabled ones); `_get_disabled_skill_names()` is the filter.
+        # We need both so the UI can render disabled skills with their
+        # toggle in the off position.
+        from tools.skills_tool import _get_disabled_skill_names
+
+        all_skills = _find_all_skills(skip_disabled=True)
+        disabled = _get_disabled_skill_names()
+        annotated = [{**s, "enabled": s["name"] not in disabled} for s in all_skills]
+        # Fall back to legacy shape if the lower-level walker returned
+        # nothing (e.g. user has no SKILL.md files yet) — keeps the existing
+        # skills_list() formatter as the source of truth for grouping etc.
+        if not annotated:
+            raw = _skills_list()
+            data = json.loads(raw) if isinstance(raw, str) else raw
+            return j(handler, {"skills": data.get("skills", [])})
+        return j(handler, {"skills": annotated})
 
     # Phase 3 — social/intercept GETs
     if parsed.path == "/api/social/queue":
@@ -1007,6 +1036,33 @@ def handle_get(handler, parsed) -> bool:
         return handle_reply_templates_get(handler)
     if parsed.path == "/api/social/doctor":
         return handle_social_doctor(handler)
+    if parsed.path == "/api/social/platforms":
+        return handle_social_platforms(handler)
+    if parsed.path == "/api/studio/batch-edit":
+        from api.batch_edit import handle_batch_edit_list
+
+        return handle_batch_edit_list(handler)
+    if parsed.path == "/api/engagement/rules":
+        from api.engagement import handle_list as _eng_list
+
+        return _eng_list(handler)
+    if parsed.path == "/api/social/accounts":
+        from api.accounts import handle_list as _acc_list
+
+        return _acc_list(handler)
+
+    if parsed.path == "/api/brand-analysis/platforms":
+        from api.brand_analysis import handle_platforms as _ba_platforms
+
+        return _ba_platforms(handler)
+    if parsed.path == "/api/brand-analysis/status":
+        from api.brand_analysis import handle_status as _ba_status
+
+        return _ba_status(handler, parsed)
+    if parsed.path == "/api/brand-analysis/download":
+        from api.brand_analysis import handle_download as _ba_download
+
+        return _ba_download(handler, parsed)
     if parsed.path == "/api/intercept/tasks":
         return handle_intercept_tasks(handler)
 
@@ -1107,6 +1163,637 @@ def handle_post(handler, parsed) -> bool:
     if parsed.path == "/api/upload":
         return handle_upload(handler)
 
+    if parsed.path == "/api/system/open-url":
+        # POST {url} — open the URL in the user's default OS browser. Required
+        # because pywebview's webkit shell silently swallows `window.open`
+        # (and even <a target=_blank>) for security; this gives a single
+        # cross-platform "force open externally" path.
+        try:
+            length = int(handler.headers.get("Content-Length", 0) or 0)
+            raw = handler.rfile.read(length) if length else b"{}"
+            payload = json.loads(raw.decode("utf-8") or "{}")
+        except Exception:
+            payload = {}
+        url = (payload.get("url") or "").strip()
+        if not url or not (url.startswith("http://") or url.startswith("https://")):
+            return bad(handler, "valid http/https url required")
+        # Use webbrowser.open instead of `cmd /c start` so the URL never gets
+        # interpreted by a shell parser (avoids cmd-meta injection on Windows).
+        import webbrowser as _wb
+
+        try:
+            _wb.open(url, new=2)
+        except Exception as exc:
+            return bad(handler, f"open failed: {exc}", 500)
+        return j(handler, {"ok": True, "url": url})
+
+    if parsed.path == "/api/files/choose-file":
+        # POST {extensions?: ["zip"], start?: "/abs/path"} → spawn the OS
+        # native file-picker and return the selected file path. Used by the
+        # SkillsPage install dialog so users can browse to a .zip skill
+        # bundle instead of typing the path.
+        try:
+            length = int(handler.headers.get("Content-Length", 0) or 0)
+            raw = handler.rfile.read(length) if length else b"{}"
+            payload = json.loads(raw.decode("utf-8") or "{}")
+        except Exception:
+            payload = {}
+        exts = payload.get("extensions") or []
+        if not isinstance(exts, list):
+            exts = []
+        # Sanitise extensions to alphanumeric only — they get interpolated
+        # into shell-adjacent strings (PowerShell, AppleScript, zenity), so
+        # any quote / backtick / semicolon would otherwise be injectable.
+        import re as _re_ext
+
+        exts = [
+            e.lstrip(".")
+            for e in exts
+            if isinstance(e, str)
+            and _re_ext.fullmatch(r"[A-Za-z0-9]{1,8}", e.lstrip("."))
+        ]
+        import platform as _plat
+        import subprocess as _sp
+
+        sysname = _plat.system()
+        try:
+            if sysname == "Darwin":
+                # Build "of type {\"zip\", \"tar.gz\"}" clause for AppleScript
+                of_type = ""
+                if exts:
+                    quoted = ", ".join(json.dumps(e.lstrip(".")) for e in exts)
+                    of_type = f" of type {{{quoted}}}"
+                script = (
+                    "try\n"
+                    f"  set f to choose file{of_type}\n"
+                    "  POSIX path of f\n"
+                    "on error\n"
+                    '  return ""\n'
+                    "end try"
+                )
+                proc = _sp.run(
+                    ["osascript", "-e", script],
+                    capture_output=True,
+                    text=True,
+                    timeout=120,
+                    check=False,
+                )
+                picked = (proc.stdout or "").strip()
+            elif sysname == "Windows":
+                filt = "All files (*.*)|*.*"
+                if exts:
+                    parts = ";".join(f"*.{e.lstrip('.')}" for e in exts)
+                    filt = f"Selected ({parts})|{parts}|All files (*.*)|*.*"
+                ps = (
+                    "Add-Type -AssemblyName System.Windows.Forms;"
+                    "$f = New-Object System.Windows.Forms.OpenFileDialog;"
+                    f"$f.Filter = '{filt}';"
+                    "if ($f.ShowDialog() -eq 'OK') { Write-Output $f.FileName }"
+                )
+                proc = _sp.run(
+                    ["powershell.exe", "-NoProfile", "-Command", ps],
+                    capture_output=True,
+                    text=True,
+                    timeout=120,
+                    check=False,
+                )
+                picked = (proc.stdout or "").strip()
+            else:
+                args = ["zenity", "--file-selection"]
+                if exts:
+                    args += [
+                        "--file-filter",
+                        "Selected | " + " ".join(f"*.{e.lstrip('.')}" for e in exts),
+                    ]
+                proc = _sp.run(
+                    args, capture_output=True, text=True, timeout=120, check=False
+                )
+                picked = (proc.stdout or "").strip()
+        except Exception as exc:
+            return j(
+                handler, {"ok": False, "error": f"picker failed: {exc}"}, status=500
+            )
+        if not picked:
+            return j(handler, {"ok": False, "cancelled": True})
+        return j(handler, {"ok": True, "path": picked})
+
+    if parsed.path == "/api/files/choose-folder":
+        # POST {start?: "/abs/path"} → spawn the OS native folder-picker
+        # dialog and return the selected directory. Used by the AgentChat
+        # composer so users get a real Finder/Explorer instead of typing a
+        # path. Implemented per-platform with shell tooling that ships in the
+        # base OS — no extra Python deps so it works inside the PyInstaller
+        # bundle.
+        try:
+            length = int(handler.headers.get("Content-Length", 0) or 0)
+            raw = handler.rfile.read(length) if length else b"{}"
+            payload = json.loads(raw.decode("utf-8") or "{}")
+        except Exception:
+            payload = {}
+        start = (payload.get("start") or "").strip()
+        # Sanitise `start` to drop characters that could escape the PowerShell
+        # single-quoted literal at line ~1314. Single quote terminates the
+        # literal; backtick / dollar-paren give code execution; semicolon /
+        # ampersand chain commands. Newlines also break the one-liner.
+        if "'" in start or any(
+            ch in start for ch in ("`", "$", ";", "&", "|", "\n", "\r")
+        ):
+            start = ""
+        import platform as _plat
+        import subprocess as _sp
+
+        sysname = _plat.system()
+        try:
+            if sysname == "Darwin":
+                # AppleScript — `choose folder` opens the standard Finder
+                # picker. Output is HFS path; we coerce to POSIX.
+                script = (
+                    "try\n"
+                    f"  set d to choose folder{(' default location POSIX file ' + json.dumps(start)) if start else ''}\n"
+                    "  POSIX path of d\n"
+                    "on error\n"
+                    '  return ""\n'
+                    "end try"
+                )
+                proc = _sp.run(
+                    ["osascript", "-e", script],
+                    capture_output=True,
+                    text=True,
+                    timeout=120,
+                    check=False,
+                )
+                picked = (proc.stdout or "").strip().rstrip("/")
+            elif sysname == "Windows":
+                ps = (
+                    "Add-Type -AssemblyName System.Windows.Forms;"
+                    "$f = New-Object System.Windows.Forms.FolderBrowserDialog;"
+                    f"$f.SelectedPath = '{start}';"
+                    if start
+                    else "$f = New-Object System.Windows.Forms.FolderBrowserDialog;"
+                )
+                ps += "if ($f.ShowDialog() -eq 'OK') { Write-Output $f.SelectedPath }"
+                proc = _sp.run(
+                    ["powershell.exe", "-NoProfile", "-Command", ps],
+                    capture_output=True,
+                    text=True,
+                    timeout=120,
+                    check=False,
+                )
+                picked = (proc.stdout or "").strip()
+            else:
+                # zenity ships on most desktop linux distros.
+                args = ["zenity", "--file-selection", "--directory"]
+                if start:
+                    args += ["--filename", start.rstrip("/") + "/"]
+                proc = _sp.run(
+                    args, capture_output=True, text=True, timeout=120, check=False
+                )
+                picked = (proc.stdout or "").strip()
+        except Exception as exc:
+            return j(
+                handler, {"ok": False, "error": f"picker failed: {exc}"}, status=500
+            )
+        if not picked:
+            return j(handler, {"ok": False, "cancelled": True})
+        return j(handler, {"ok": True, "path": picked})
+
+    if parsed.path == "/api/studio/save-output":
+        # POST {url, dest_dir, filename?} → download a remote URL into the
+        # user's chosen storage directory and return the saved absolute path.
+        # Used by ContentStudio to materialise generated images/videos on disk
+        # the moment the upstream task succeeds (most providers GC the asset
+        # within a few hours).
+        try:
+            length = int(handler.headers.get("Content-Length", 0) or 0)
+            raw = handler.rfile.read(length) if length else b"{}"
+            payload = json.loads(raw.decode("utf-8") or "{}")
+        except Exception:
+            return j(handler, {"ok": False, "error": "bad json"}, status=400)
+
+        url = (payload.get("url") or "").strip()
+        dest_dir = (payload.get("dest_dir") or "").strip()
+        if not url or not url.startswith(("http://", "https://")):
+            return j(
+                handler, {"ok": False, "error": "missing or invalid url"}, status=400
+            )
+        if not dest_dir:
+            return j(handler, {"ok": False, "error": "missing dest_dir"}, status=400)
+
+        from pathlib import Path as _P
+        import urllib.request as _ur
+        import urllib.parse as _up
+        import time as _t
+        import re as _re
+
+        try:
+            dest_root = _P(dest_dir).expanduser().resolve()
+            dest_root.mkdir(parents=True, exist_ok=True)
+        except Exception as exc:
+            return j(
+                handler, {"ok": False, "error": f"bad dest_dir: {exc}"}, status=400
+            )
+
+        # Pick filename: explicit > URL path basename > timestamp+ext.
+        explicit = (payload.get("filename") or "").strip()
+        if explicit:
+            candidate = explicit
+        else:
+            url_path = _up.urlparse(url).path
+            candidate = _P(url_path).name or f"output-{int(_t.time())}.bin"
+        # Sanitise — drop separators / control bytes / over-long names.
+        candidate = _re.sub(r"[^\w.\-]", "_", _P(candidate).name)[:160]
+        if not candidate or candidate.strip(".") == "":
+            candidate = f"output-{int(_t.time())}.bin"
+
+        # Avoid clobbering an existing file.
+        target = dest_root / candidate
+        if target.exists():
+            stem, suffix = target.stem, target.suffix
+            i = 1
+            while True:
+                candidate = f"{stem}-{i}{suffix}"
+                target = dest_root / candidate
+                if not target.exists():
+                    break
+                i += 1
+                if i > 9999:
+                    return j(
+                        handler,
+                        {"ok": False, "error": "too many duplicates"},
+                        status=500,
+                    )
+
+        try:
+            from api.url_safety import open_safe_http, UnsafeUrlError
+
+            try:
+                resp = open_safe_http(url, timeout=300)
+            except UnsafeUrlError as exc:
+                return j(
+                    handler, {"ok": False, "error": f"unsafe url: {exc}"}, status=400
+                )
+            with target.open("wb") as fh:
+                cap = 500 * 1024 * 1024
+                total = 0
+                try:
+                    while True:
+                        chunk = resp.read_chunk(64 * 1024)
+                        if not chunk:
+                            break
+                        total += len(chunk)
+                        if total > cap:
+                            target.unlink(missing_ok=True)
+                            return j(
+                                handler,
+                                {"ok": False, "error": "remote file exceeds 500MB cap"},
+                                status=413,
+                            )
+                        fh.write(chunk)
+                finally:
+                    try:
+                        resp.body.close()
+                    except Exception:
+                        pass
+        except Exception as exc:
+            target.unlink(missing_ok=True)
+            return j(
+                handler, {"ok": False, "error": f"download failed: {exc}"}, status=502
+            )
+
+        return j(
+            handler,
+            {
+                "ok": True,
+                "path": str(target),
+                "filename": candidate,
+                "size": target.stat().st_size,
+            },
+        )
+
+    if parsed.path == "/api/studio/oss-upload":
+        # multipart/form-data POST {file} → upload to the netclaw-agent OSS
+        # bucket under <employee_id>/<timestamp>-<safe-name> and return the
+        # public URL. ContentStudio uses this so users can pick local files
+        # from Finder/Explorer instead of typing public URLs.
+        from api.upload import parse_multipart, _sanitize_upload_name
+
+        try:
+            content_type = handler.headers.get("Content-Type", "")
+            content_length = int(handler.headers.get("Content-Length", 0) or 0)
+            if content_length > MAX_UPLOAD_BYTES:
+                return j(
+                    handler,
+                    {
+                        "ok": False,
+                        "error": f"File too large (max {MAX_UPLOAD_BYTES // 1024 // 1024}MB)",
+                    },
+                    status=413,
+                )
+            fields, files = parse_multipart(handler.rfile, content_type, content_length)
+        except ValueError as exc:
+            return j(handler, {"ok": False, "error": str(exc)}, status=400)
+        except Exception as exc:
+            return j(
+                handler, {"ok": False, "error": f"parse failed: {exc}"}, status=400
+            )
+
+        if "file" not in files:
+            return j(handler, {"ok": False, "error": "no file field"}, status=400)
+        filename, file_bytes = files["file"]
+        try:
+            safe_name = _sanitize_upload_name(filename)
+        except ValueError as exc:
+            return j(handler, {"ok": False, "error": str(exc)}, status=400)
+
+        ak = os.environ.get("OSS_ACCESS_KEY") or os.environ.get("ALICLOUD_AK")
+        sk = os.environ.get("OSS_ACCESS_SECRET") or os.environ.get("ALICLOUD_SK")
+        if not ak or not sk:
+            return j(
+                handler,
+                {
+                    "ok": False,
+                    "error": "OSS credentials missing — set OSS_ACCESS_KEY/SECRET",
+                },
+                status=500,
+            )
+
+        try:
+            import oss2
+        except ImportError:
+            return j(
+                handler, {"ok": False, "error": "oss2 SDK not bundled"}, status=500
+            )
+
+        # Per-employee folder so different users don't collide.
+        try:
+            from hermes_cli.employee_auth import load_auth_state, ANONYMOUS_EMPLOYEE_ID
+
+            state = load_auth_state()
+            employee_id = (
+                state.employee_id if state else None
+            ) or ANONYMOUS_EMPLOYEE_ID
+        except Exception:
+            employee_id = "_anonymous"
+
+        bucket_name = os.environ.get("NETCLAW_AGENT_BUCKET", "netclaw-agent")
+        endpoint = os.environ.get(
+            "NETCLAW_AGENT_OSS_ENDPOINT", "https://oss-cn-hangzhou.aliyuncs.com"
+        )
+        region_host = endpoint.replace("https://", "").replace("http://", "")
+
+        import time as _t
+
+        ts = int(_t.time() * 1000)
+        key = f"{employee_id}/{ts}-{safe_name}"
+
+        try:
+            auth = oss2.Auth(ak, sk)
+            bucket = oss2.Bucket(auth, endpoint, bucket_name)
+            # Object-level public-read so the resulting URL never expires.
+            # The bucket itself has account/bucket BlockPublicAccess disabled
+            # (one-time setup); we set object ACL on each put so a future
+            # bucket-level toggle doesn't quietly start serving 403s.
+            bucket.put_object(
+                key,
+                file_bytes,
+                headers={"x-oss-object-acl": "public-read"},
+            )
+        except Exception as exc:
+            return j(
+                handler, {"ok": False, "error": f"OSS put failed: {exc}"}, status=502
+            )
+
+        public_url = f"https://{bucket_name}.{region_host}/{key}"
+        return j(
+            handler,
+            {"ok": True, "url": public_url, "key": key, "size": len(file_bytes)},
+        )
+
+    if parsed.path in (
+        "/api/studio/oss-list",
+        "/api/studio/oss-delete",
+        "/api/studio/oss-mirror",
+    ):
+        # Shared OSS plumbing — extract once, dispatch by path below.
+        ak = os.environ.get("OSS_ACCESS_KEY") or os.environ.get("ALICLOUD_AK")
+        sk = os.environ.get("OSS_ACCESS_SECRET") or os.environ.get("ALICLOUD_SK")
+        if not ak or not sk:
+            return j(
+                handler,
+                {"ok": False, "error": "OSS credentials missing"},
+                status=500,
+            )
+        try:
+            import oss2
+        except ImportError:
+            return j(
+                handler, {"ok": False, "error": "oss2 SDK not bundled"}, status=500
+            )
+        try:
+            from hermes_cli.employee_auth import (
+                load_auth_state,
+                ANONYMOUS_EMPLOYEE_ID,
+            )
+
+            state = load_auth_state()
+            employee_id = (
+                state.employee_id if state else None
+            ) or ANONYMOUS_EMPLOYEE_ID
+        except Exception:
+            employee_id = "_anonymous"
+        bucket_name = os.environ.get("NETCLAW_AGENT_BUCKET", "netclaw-agent")
+        endpoint = os.environ.get(
+            "NETCLAW_AGENT_OSS_ENDPOINT",
+            "https://oss-cn-hangzhou.aliyuncs.com",
+        )
+        region_host = endpoint.replace("https://", "").replace("http://", "")
+        auth = oss2.Auth(ak, sk)
+        bucket = oss2.Bucket(auth, endpoint, bucket_name)
+        prefix = f"{employee_id}/"
+
+        # ── GET-style list: ?marker=... pagination ───────────────────────
+        if parsed.path == "/api/studio/oss-list":
+            try:
+                from urllib.parse import parse_qs
+
+                qs = parse_qs(parsed.query)
+                marker = (qs.get("marker", [""])[0] or "").strip()
+                max_keys = min(int(qs.get("limit", ["100"])[0] or 100), 1000)
+                items = []
+                next_marker = None
+                listing = bucket.list_objects(
+                    prefix=prefix, max_keys=max_keys, marker=marker
+                )
+                for obj in listing.object_list:
+                    items.append(
+                        {
+                            "key": obj.key,
+                            "filename": obj.key[len(prefix) :],
+                            "size": obj.size,
+                            "url": f"https://{bucket_name}.{region_host}/{obj.key}",
+                            "modified": (
+                                obj.last_modified
+                                if isinstance(obj.last_modified, (int, float))
+                                else None
+                            ),
+                        }
+                    )
+                if listing.is_truncated:
+                    next_marker = listing.next_marker
+                return j(
+                    handler,
+                    {"ok": True, "items": items, "next_marker": next_marker},
+                )
+            except Exception as exc:
+                return j(
+                    handler, {"ok": False, "error": f"list failed: {exc}"}, status=502
+                )
+
+        # ── delete: POST {keys: [...]} ───────────────────────────────────
+        if parsed.path == "/api/studio/oss-delete":
+            try:
+                length = int(handler.headers.get("Content-Length", 0) or 0)
+                payload = json.loads(handler.rfile.read(length).decode("utf-8") or "{}")
+            except Exception:
+                return j(handler, {"ok": False, "error": "bad json"}, status=400)
+            keys = payload.get("keys") or []
+            if not isinstance(keys, list) or not keys:
+                return j(handler, {"ok": False, "error": "missing keys"}, status=400)
+            # Refuse to touch keys outside the caller's prefix.
+            keys = [k for k in keys if isinstance(k, str) and k.startswith(prefix)]
+            if not keys:
+                return j(handler, {"ok": False, "error": "no allowed keys"}, status=403)
+            try:
+                bucket.batch_delete_objects(keys)
+                return j(handler, {"ok": True, "deleted": keys})
+            except Exception as exc:
+                return j(
+                    handler,
+                    {"ok": False, "error": f"delete failed: {exc}"},
+                    status=502,
+                )
+
+        # ── mirror: POST {url, filename?} — fetches an external URL and
+        #            re-uploads it to OSS so the result outlives the
+        #            upstream provider's CDN expiry.
+        if parsed.path == "/api/studio/oss-mirror":
+            try:
+                length = int(handler.headers.get("Content-Length", 0) or 0)
+                payload = json.loads(handler.rfile.read(length).decode("utf-8") or "{}")
+            except Exception:
+                return j(handler, {"ok": False, "error": "bad json"}, status=400)
+            url = (payload.get("url") or "").strip()
+            if not url or not url.startswith(("http://", "https://")):
+                return j(handler, {"ok": False, "error": "missing url"}, status=400)
+            explicit = (payload.get("filename") or "").strip()
+            import urllib.request as _ur
+            import urllib.parse as _up
+            import re as _re
+            import time as _t
+
+            # Pick filename
+            if explicit:
+                cand = explicit
+            else:
+                cand = (
+                    Path(_up.urlparse(url).path).name or f"output-{int(_t.time())}.bin"
+                )
+            cand = _re.sub(r"[^\w.\-]", "_", Path(cand).name)[:160]
+            if not cand or cand.strip(".") == "":
+                cand = f"output-{int(_t.time())}.bin"
+
+            ts = int(_t.time() * 1000)
+            key = f"{prefix}{ts}-{cand}"
+
+            try:
+                from api.url_safety import open_safe_http, UnsafeUrlError
+
+                try:
+                    safe_resp = open_safe_http(url, timeout=300)
+                except UnsafeUrlError as exc:
+                    return j(
+                        handler,
+                        {"ok": False, "error": f"unsafe url: {exc}"},
+                        status=400,
+                    )
+                try:
+                    body = safe_resp.read_chunk(500 * 1024 * 1024 + 1)
+                finally:
+                    try:
+                        safe_resp.body.close()
+                    except Exception:
+                        pass
+                if len(body) > 500 * 1024 * 1024:
+                    return j(
+                        handler,
+                        {"ok": False, "error": "remote file exceeds 500MB"},
+                        status=413,
+                    )
+            except Exception as exc:
+                return j(
+                    handler,
+                    {"ok": False, "error": f"fetch failed: {exc}"},
+                    status=502,
+                )
+
+            try:
+                bucket.put_object(
+                    key, body, headers={"x-oss-object-acl": "public-read"}
+                )
+            except Exception as exc:
+                return j(
+                    handler,
+                    {"ok": False, "error": f"OSS put failed: {exc}"},
+                    status=502,
+                )
+
+            return j(
+                handler,
+                {
+                    "ok": True,
+                    "url": f"https://{bucket_name}.{region_host}/{key}",
+                    "key": key,
+                    "size": len(body),
+                },
+            )
+
+    if parsed.path == "/api/files/reveal":
+        # POST {path: "/abs/path/to/file"} → spawn the OS file explorer with
+        # the file selected/highlighted. macOS: `open -R`. Windows:
+        # `explorer.exe /select,`. Linux: best-effort `xdg-open` on parent dir.
+        try:
+            length = int(handler.headers.get("Content-Length", 0) or 0)
+            raw = handler.rfile.read(length) if length else b"{}"
+            payload = json.loads(raw.decode("utf-8") or "{}")
+        except Exception:
+            payload = {}
+        target = (payload.get("path") or "").strip()
+        if not target:
+            return bad(handler, "path is required")
+        from pathlib import Path as _P
+        import platform as _plat
+        import subprocess as _sp
+
+        try:
+            p = _P(target).expanduser().resolve(strict=False)
+        except Exception as exc:
+            return bad(handler, f"invalid path: {exc}")
+        if not p.exists():
+            return bad(handler, f"path not found: {p}", 404)
+        try:
+            sysname = _plat.system()
+            if sysname == "Darwin":
+                _sp.Popen(["open", "-R", str(p)])
+            elif sysname == "Windows":
+                # explorer /select,"C:\foo\bar.png" highlights the file in
+                # the parent folder. The comma must be the *only* separator.
+                _sp.Popen(["explorer.exe", f"/select,{p}"])
+            else:
+                _sp.Popen(["xdg-open", str(p.parent if p.is_file() else p)])
+        except Exception as exc:
+            return bad(handler, f"reveal failed: {exc}", 500)
+        return j(handler, {"ok": True, "path": str(p)})
+
     if parsed.path == "/api/transcribe":
         return handle_transcribe(handler)
 
@@ -1115,6 +1802,43 @@ def handle_post(handler, parsed) -> bool:
         return handle_publish_upload(handler)
     if parsed.path == "/api/social/queue":
         return handle_publish_queue_post(handler)
+    if parsed.path == "/api/social/publish-batch":
+        return handle_publish_batch(handler)
+    if parsed.path == "/api/studio/batch-edit":
+        from api.batch_edit import handle_batch_edit_create
+
+        return handle_batch_edit_create(handler)
+    if parsed.path == "/api/engagement/rules":
+        from api.engagement import handle_create as _eng_create
+
+        return _eng_create(handler)
+    if parsed.path == "/api/social/accounts":
+        from api.accounts import handle_add as _acc_add
+
+        return _acc_add(handler)
+    if parsed.path.startswith("/api/social/accounts/"):
+        suffix = parsed.path[len("/api/social/accounts/") :]
+        parts = suffix.split("/")
+        if len(parts) == 3 and parts[2] == "delete":
+            from api.accounts import handle_delete as _acc_del
+
+            return _acc_del(handler, parts[0], parts[1])
+        if len(parts) == 3 and parts[2] == "update":
+            from api.accounts import handle_update as _acc_upd
+
+            return _acc_upd(handler, parts[0], parts[1])
+    if parsed.path.startswith("/api/engagement/rules/"):
+        suffix = parsed.path[len("/api/engagement/rules/") :]
+        if suffix.endswith("/update"):
+            rule_id = suffix[: -len("/update")]
+            from api.engagement import handle_update as _eng_update
+
+            return _eng_update(handler, rule_id)
+        if suffix.endswith("/delete"):
+            rule_id = suffix[: -len("/delete")]
+            from api.engagement import handle_delete as _eng_delete
+
+            return _eng_delete(handler, rule_id)
     if parsed.path == "/api/social/reply-templates":
         return handle_reply_templates_post(handler)
     if parsed.path == "/api/intercept/search":
@@ -1160,6 +1884,20 @@ def handle_post(handler, parsed) -> bool:
         from api.employee import handle_logout as _emp_logout
 
         return _emp_logout(handler, body)
+
+    if parsed.path == "/api/qxnav/generate":
+        from api.qxnav import handle_generate as _qxnav_generate
+
+        return _qxnav_generate(handler, body)
+
+    if parsed.path == "/api/brand-analysis/start":
+        from api.brand_analysis import handle_start as _ba_start
+
+        return _ba_start(handler, body)
+    if parsed.path == "/api/brand-analysis/export":
+        from api.brand_analysis import handle_export as _ba_export
+
+        return _ba_export(handler, body)
 
     if parsed.path == "/api/session/new":
         try:
@@ -1405,6 +2143,52 @@ def handle_post(handler, parsed) -> bool:
 
     if parsed.path == "/api/skills/delete":
         return _handle_skill_delete(handler, body)
+
+    if parsed.path == "/api/skills/toggle":
+        # body = {name, enabled}. Persists into config.yaml under
+        # skills.disabled (a list of skill names that are turned off).
+        # The web client renders this list and lets users flip individual
+        # toggles — `_find_all_skills` then filters them out by default.
+        name = (body or {}).get("name") if isinstance(body, dict) else None
+        enabled = bool((body or {}).get("enabled")) if isinstance(body, dict) else False
+        if not isinstance(name, str) or not name.strip():
+            return j(handler, {"ok": False, "error": "missing name"}, status=400)
+        try:
+            from hermes_cli.config import load_config, get_config_path
+            from utils import atomic_yaml_write
+        except Exception as exc:
+            return j(
+                handler,
+                {"ok": False, "error": f"config import failed: {exc}"},
+                status=500,
+            )
+        try:
+            cfg = load_config() or {}
+            if not isinstance(cfg, dict):
+                cfg = {}
+            skills_cfg = cfg.get("skills")
+            if not isinstance(skills_cfg, dict):
+                skills_cfg = {}
+                cfg["skills"] = skills_cfg
+            disabled_raw = skills_cfg.get("disabled") or []
+            if isinstance(disabled_raw, str):
+                disabled_raw = [disabled_raw]
+            disabled = {str(v).strip() for v in disabled_raw if str(v).strip()}
+            if enabled:
+                disabled.discard(name.strip())
+            else:
+                disabled.add(name.strip())
+            skills_cfg["disabled"] = sorted(disabled)
+            # Bypass save_config() (which bails when HERMES_MANAGED is set
+            # by the macOS app launcher) — write the YAML directly.
+            atomic_yaml_write(get_config_path(), cfg)
+        except Exception as exc:
+            return j(
+                handler,
+                {"ok": False, "error": f"persist failed: {exc}"},
+                status=500,
+            )
+        return j(handler, {"ok": True, "name": name, "enabled": enabled})
 
     # ── Memory (POST) ──
     if parsed.path == "/api/memory/write":
